@@ -42,7 +42,7 @@ and the soliton solution is
 .. math::
 
     \tilde{\Psi}(\tilde{x}, \tilde{t})
-    = \sqrt{\tilde{n_0}} \exp(-i \tilde{t}) \frac{1}{\cosh \tilde{x}},
+    = \sqrt{\tilde{n_0}} \exp(i \tilde{t}) \frac{1}{\cosh \tilde{x}},
 
 We can introduce linear losses in this GPE as
 
@@ -75,7 +75,8 @@ In this example we test that:
 - without losses the numerical solution converges to the exact solution;
 - the total atom number is preserved without losses;
 - the total atom number decreases as :math:`N_0 \exp(-2 \gamma \tilde{t})`
-  when the losses are enabled, both for the GPE and for the Wigner representation.
+  when the losses are enabled, both for the GPE and for the Wigner representation;
+- visually check that the soliton stays in place and does not dissipate.
 """
 
 from __future__ import print_function, division
