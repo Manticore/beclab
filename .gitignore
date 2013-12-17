@@ -1,0 +1,9 @@
+*.pyc
+beclab.egg-info/*
+test/htmlcov/*
+test/.coverage
+doc/build
+build
+dist
+*.sublime-project
+*.sublime-workspace
