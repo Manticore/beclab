@@ -102,7 +102,7 @@ class SSCDStepper(Computation):
     """
 
     def __init__(self, shape, box, drift,
-            ensembles=1, kinetic_coeff=-0.5, diffusion=None, iterations=3):
+            ensembles=1, kinetic_coeff=0.5, diffusion=None, iterations=3):
 
         real_dtype = dtypes.real_for(drift.dtype)
 
