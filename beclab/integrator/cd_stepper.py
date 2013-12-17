@@ -98,8 +98,10 @@ class CDStepper(Computation):
     Split step, central difference stepper.
     """
 
-    def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=-0.5, diffusion=None):
+    def __init__(self, shape, box, drift,
+            ensembles=1, kinetic_coeff=-0.5, diffusion=None, iterations=3):
 
+        self._iterations = iterations
         real_dtype = dtypes.real_for(drift.dtype)
 
         if diffusion is not None:
@@ -159,13 +161,12 @@ class CDStepper(Computation):
         kdata = plan.temp_array_like(output)
         result = plan.temp_array_like(output)
 
-        iterations = 3
         data_out = input_
 
-        for i in range(iterations):
+        for i in range(self._iterations):
 
             data_in = data_out
-            if i == iterations - 1:
+            if i == self._iterations - 1:
                 dt_modifier = 2.
                 data_out = output
             else:

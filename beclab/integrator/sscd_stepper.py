@@ -21,7 +21,7 @@ def get_ksquared(shape, box):
     return sum([full_k ** 2 for full_k in full_ks])
 
 
-def get_prop_iter(state_arr, drift, diffusion=None, dW_arr=None, iterations=3):
+def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
 
     real_dtype = dtypes.real_for(state_arr.dtype)
     if diffusion is not None:
@@ -101,7 +101,8 @@ class SSCDStepper(Computation):
     Split step, central difference stepper.
     """
 
-    def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=-0.5, diffusion=None):
+    def __init__(self, shape, box, drift,
+            ensembles=1, kinetic_coeff=-0.5, diffusion=None, iterations=3):
 
         real_dtype = dtypes.real_for(drift.dtype)
 
@@ -147,7 +148,9 @@ class SSCDStepper(Computation):
             kprop_trf, kprop_trf.input,
             output_prime=kprop_trf.output, kprop=kprop_trf.kprop, dt=kprop_trf.dt)
 
-        self._prop_iter = get_prop_iter(state_arr, drift, diffusion=diffusion, dW_arr=dW_arr)
+        self._prop_iter = get_prop_iter(
+            state_arr, drift, iterations,
+            diffusion=diffusion, dW_arr=dW_arr)
 
     def _add_kprop(self, plan, output, input_, kprop_device, dt):
         temp = plan.temp_array_like(output)
