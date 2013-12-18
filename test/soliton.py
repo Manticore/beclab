@@ -97,22 +97,22 @@ from beclab.integrator import (
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 
 
-def get_drift(complex_dtype, U, gamma, dx, wigner=False):
+def get_drift(state_dtype, U, gamma, dx, wigner=False):
     return Drift(
         Module.create(
             """
             <%
-                r_dtype = dtypes.real_for(c_dtype)
-                c_ctype = dtypes.ctype(c_dtype)
+                r_dtype = dtypes.real_for(s_dtype)
+                s_ctype = dtypes.ctype(s_dtype)
                 r_ctype = dtypes.ctype(r_dtype)
             %>
-            INLINE WITHIN_KERNEL ${c_ctype} ${prefix}0(
+            INLINE WITHIN_KERNEL ${s_ctype} ${prefix}0(
                 const int idx_x,
-                const ${c_ctype} psi,
+                const ${s_ctype} psi,
                 ${r_ctype} t)
             {
                 return ${mul_cc}(
-                    COMPLEX_CTR(${c_ctype})(
+                    COMPLEX_CTR(${s_ctype})(
                         -${gamma},
                         -(${U} * (${norm}(psi) - ${correction}))),
                     psi
@@ -120,38 +120,38 @@ def get_drift(complex_dtype, U, gamma, dx, wigner=False):
             }
             """,
             render_kwds=dict(
-                c_dtype=complex_dtype,
+                s_dtype=state_dtype,
                 U=U,
                 gamma=gamma,
-                mul_cc=functions.mul(complex_dtype, complex_dtype),
-                norm=functions.norm(complex_dtype),
+                mul_cc=functions.mul(state_dtype, state_dtype),
+                norm=functions.norm(state_dtype),
                 correction=1. / dx if wigner else 0
                 )),
-        complex_dtype, components=1)
+        state_dtype, components=1)
 
 
-def get_diffusion(complex_dtype, gamma):
+def get_diffusion(state_dtype, gamma):
     return Diffusion(
         Module.create(
             """
             <%
-                r_dtype = dtypes.real_for(c_dtype)
-                c_ctype = dtypes.ctype(c_dtype)
+                r_dtype = dtypes.real_for(s_dtype)
+                s_ctype = dtypes.ctype(s_dtype)
                 r_ctype = dtypes.ctype(r_dtype)
             %>
-            INLINE WITHIN_KERNEL ${c_ctype} ${prefix}0_0(
+            INLINE WITHIN_KERNEL ${s_ctype} ${prefix}0_0(
                 const int idx_x,
-                const ${c_ctype} psi,
+                const ${s_ctype} psi,
                 ${r_ctype} t)
             {
-                return COMPLEX_CTR(${c_ctype})(${numpy.sqrt(gamma)}, 0);
+                return COMPLEX_CTR(${s_ctype})(${numpy.sqrt(gamma)}, 0);
             }
             """,
             render_kwds=dict(
-                mul_cr=functions.mul(complex_dtype, dtypes.real_for(complex_dtype)),
-                c_dtype=complex_dtype,
+                mul_cr=functions.mul(state_dtype, dtypes.real_for(state_dtype)),
+                s_dtype=state_dtype,
                 gamma=gamma)),
-        complex_dtype, components=1, noise_sources=1)
+        state_dtype, components=1, noise_sources=1)
 
 
 class PsiCollector:
@@ -195,8 +195,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     gamma = 0.0 if no_losses else 0.2
     n0 = 100.0
     U = -2. / n0
-    complex_dtype = numpy.complex128
-    float_dtype = dtypes.real_for(complex_dtype)
+    state_dtype = numpy.complex128
     seed = 1234
 
     # Lattice
@@ -220,14 +219,14 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     else:
         psi0 = numpy.tile(psi0, (1, 1, 1))
 
-    psi_gpu = thr.to_device(psi0.astype(complex_dtype))
+    psi_gpu = thr.to_device(psi0.astype(state_dtype))
 
     # Prepare integrator components
-    drift = get_drift(complex_dtype, U, gamma, dx, wigner=wigner)
+    drift = get_drift(state_dtype, U, gamma, dx, wigner=wigner)
     stepper = stepper_cls((lattice_size,), (domain[1] - domain[0],), drift,
         kinetic_coeff=1,
         ensembles=paths if wigner else 1,
-        diffusion=get_diffusion(complex_dtype, gamma) if wigner else None)
+        diffusion=get_diffusion(state_dtype, gamma) if wigner else None)
 
     if wigner:
         wiener = Wiener(stepper.parameter.dW, 1. / dx, seed=seed)
