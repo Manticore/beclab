@@ -93,7 +93,8 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    FixedStepIntegrator, Wiener, SSCDStepper, CDStepper, RK4IPStepper, Drift, Diffusion)
+    FixedStepIntegrator, Wiener, Drift, Diffusion,
+    SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 
 
 def get_drift(complex_dtype, U, gamma, dx, wigner=False):
@@ -295,6 +296,7 @@ if __name__ == '__main__':
         ("SS-CD", SSCDStepper),
         ("CD", CDStepper),
         ("RK4IP", RK4IPStepper),
+        ("RK46-NL", RK46NLStepper),
     ]
 
     for label, cls in tests:
