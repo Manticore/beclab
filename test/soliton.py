@@ -276,13 +276,13 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
         xx = x.reshape(1, 1, 1, x.size)
         psi_exact = numpy.sqrt(n0) / numpy.cosh(xx) * numpy.exp(1j * tt)
         diff = numpy.linalg.norm(psi - psi_exact) / numpy.linalg.norm(psi_exact)
-        print("Difference with an exact solution:", diff)
+        print("Difference with the exact solution:", diff)
         assert diff < 1e-3
 
     # Check the population decay
     sigma = numpy.linalg.norm(N_err) if wigner else N_mean * 1e-6
     max_diff = (numpy.abs(N_mean - N_exact) / sigma).max()
-    print("Maximum difference with an exact population decay:", max_diff, "sigma")
+    print("Maximum difference with the exact population decay:", max_diff, "sigma")
     assert max_diff < 1
 
 
