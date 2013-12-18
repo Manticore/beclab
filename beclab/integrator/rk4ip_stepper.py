@@ -21,51 +21,111 @@ def get_ksquared(shape, box):
     return sum([full_k ** 2 for full_k in full_ks])
 
 
-def get_nonlinear_wrapper(c_dtype, nonlinear_module, dt):
-    s_dtype = dtypes.real_for(c_dtype)
+def get_nonlinear_wrapper(state_dtype, grid_dims, drift, diffusion=None):
+
+    real_dtype = dtypes.real_for(state_dtype)
+    if diffusion is not None:
+        noise_dtype = diffusion.dtype
+    else:
+        noise_dtype = real_dtype
+
     return Module.create(
         """
-        %for comp in (0, 1):
-        INLINE WITHIN_KERNEL ${c_ctype} ${prefix}${comp}(
-            ${c_ctype} psi0, ${c_ctype} psi1, ${s_ctype} t)
+        <%
+            components = drift.components
+            idx_args = ["idx_" + str(dim) for dim in range(grid_dims)]
+            psi_args = ["psi_" + str(comp) for comp in range(components)]
+            if diffusion is not None:
+                dW_args = ["dW_" + str(ncomp) for ncomp in range(diffusion.noise_sources)]
+        %>
+        %for comp in range(components):
+        INLINE WITHIN_KERNEL ${s_ctype} ${prefix}${comp}(
+            %for idx in idx_args:
+            const int ${idx},
+            %endfor
+            %for psi in psi_args:
+            const ${s_ctype} ${psi},
+            %endfor
+            %if diffusion is not None:
+            %for dW in dW_args:
+            const ${n_ctype} ${dW},
+            %endfor
+            %endif
+            const ${r_ctype} t,
+            const ${r_ctype} dt)
         {
-            ${c_ctype} nonlinear = ${nonlinear}${comp}(psi0, psi1, t);
-            return ${mul}(
-                COMPLEX_CTR(${c_ctype})(0, -${dt}),
-                nonlinear);
+            return
+                ${mul_sr}(${drift.module}${comp}(
+                    ${", ".join(idx_args)}, ${", ".join(psi_args)}, t), dt)
+                %if diffusion is not None:
+                %for ncomp in range(diffusion.noise_sources):
+                + ${mul_sn}(${diffusion.module}${comp}_${ncomp}(
+                    ${", ".join(idx_args)}, ${", ".join(psi_args)}, t), ${dW_args[ncomp]})
+                %endfor
+                %endif
+                ;
         }
         %endfor
         """,
         render_kwds=dict(
-            c_ctype=dtypes.ctype(c_dtype),
-            s_ctype=dtypes.ctype(s_dtype),
-            mul=functions.mul(c_dtype, c_dtype),
-            dt=dtypes.c_constant(dt, s_dtype),
-            nonlinear=nonlinear_module))
+            grid_dims=grid_dims,
+            s_ctype=dtypes.ctype(state_dtype),
+            r_ctype=dtypes.ctype(real_dtype),
+            n_ctype=dtypes.ctype(noise_dtype),
+            mul_sr=functions.mul(state_dtype, real_dtype),
+            mul_sn=functions.mul(state_dtype, noise_dtype),
+            drift=drift,
+            diffusion=diffusion))
 
 
-def get_nonlinear1(state_arr, real_dtype, nonlinear_module):
+def get_nonlinear1(state_arr, nonlinear_wrapper, components, diffusion=None, dW_arr=None):
+
+    real_dtype = dtypes.real_for(state_arr.dtype)
+
     # output = N(input)
     return PureParallel(
         [
             Parameter('output', Annotation(state_arr, 'o')),
-            Parameter('input', Annotation(state_arr, 'i')),
-            Parameter('t', Annotation(real_dtype))],
+            Parameter('input', Annotation(state_arr, 'i'))]
+            + ([Parameter('dW', Annotation(dW_arr, 'i'))] if diffusion is not None else []) +
+            [Parameter('t', Annotation(real_dtype)),
+            Parameter('dt', Annotation(real_dtype))],
         """
         <%
-            all_indices = ', '.join(idxs)
-        %>
-        ${output.ctype} psi0 = ${input.load_idx}(0, ${all_indices});
-        ${output.ctype} psi1 = ${input.load_idx}(1, ${all_indices});
+            if diffusion is None:
+                dW = None
 
-        ${output.store_idx}(0, ${all_indices}, ${nonlinear}0(psi0, psi1, ${t}));
-        ${output.store_idx}(1, ${all_indices}, ${nonlinear}1(psi0, psi1, ${t}));
+            all_indices = ', '.join(idxs)
+            args = lambda prefix, num: list(map(lambda i: prefix + str(i), range(num)))
+            dW_args = args('dW_', diffusion.noise_sources) if diffusion is not None else []
+            n_args = ", ".join(idxs[1:] + args('psi_', components) + dW_args)
+        %>
+        %for comp in range(components):
+        ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
+        %endfor
+
+        %if diffusion is not None:
+        %for ncomp in range(diffusion.noise_sources):
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        %endfor
+        %endif
+
+        %for comp in range(components):
+        ${output.store_idx}(
+            ${comp}, ${all_indices}, ${nonlinear}${comp}(${n_args}, ${t}, ${dt}));
+        %endfor
         """,
         guiding_array=state_arr.shape[1:],
-        render_kwds=dict(nonlinear=nonlinear_module))
+        render_kwds=dict(
+            components=components,
+            nonlinear=nonlinear_wrapper,
+            diffusion=diffusion))
 
 
-def get_nonlinear2(state_arr, real_dtype, nonlinear_module, dt):
+def get_nonlinear2(state_arr, nonlinear_wrapper, components, diffusion=None, dW_arr=None):
+
+    real_dtype = dtypes.real_for(state_arr.dtype)
+
     # k2 = N(psi_I + k1 / 2, t + dt / 2)
     # k3 = N(psi_I + k2 / 2, t + dt / 2)
     # psi_4 = psi_I + k3 (argument for the 4-th step k-propagation)
@@ -75,82 +135,119 @@ def get_nonlinear2(state_arr, real_dtype, nonlinear_module, dt):
             Parameter('psi_k', Annotation(state_arr, 'o')),
             Parameter('psi_4', Annotation(state_arr, 'o')),
             Parameter('psi_I', Annotation(state_arr, 'i')),
-            Parameter('k1', Annotation(state_arr, 'i')),
-            Parameter('t', Annotation(real_dtype))],
+            Parameter('k1', Annotation(state_arr, 'i'))]
+            + ([Parameter('dW', Annotation(dW_arr, 'i'))] if diffusion is not None else []) +
+            [Parameter('t', Annotation(real_dtype)),
+            Parameter('dt', Annotation(real_dtype))],
         """
         <%
+            if diffusion is None:
+                dW = None
+
             all_indices = ', '.join(idxs)
+            args = lambda prefix, num: ", ".join(map(lambda i: prefix + str(i), range(num)))
+            dW_args = (args('dW_', diffusion.noise_sources) + ",") if diffusion is not None else ""
+            idx_args = ', '.join(idxs[1:])
         %>
 
-        ${psi_k.ctype} psi_I_0 = ${psi_I.load_idx}(0, ${all_indices});
-        ${psi_k.ctype} psi_I_1 = ${psi_I.load_idx}(1, ${all_indices});
-        ${psi_k.ctype} k1_0 = ${k1.load_idx}(0, ${all_indices});
-        ${psi_k.ctype} k1_1 = ${k1.load_idx}(1, ${all_indices});
+        %for comp in range(components):
+        ${psi_k.ctype} psi_I_${comp} = ${psi_I.load_idx}(${comp}, ${all_indices});
+        ${psi_k.ctype} k1_${comp} = ${k1.load_idx}(${comp}, ${all_indices});
+        %endfor
 
-        ${psi_k.ctype} k2_0 = ${nonlinear}0(
-            psi_I_0 + ${div}(k1_0, 2),
-            psi_I_1 + ${div}(k1_1, 2),
-            ${t} + ${dt} / 2);
-        ${psi_k.ctype} k2_1 = ${nonlinear}1(
-            psi_I_0 + ${div}(k1_0, 2),
-            psi_I_1 + ${div}(k1_1, 2),
-            ${t} + ${dt} / 2);
+        %if diffusion is not None:
+        %for ncomp in range(diffusion.noise_sources):
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        %endfor
+        %endif
 
-        ${psi_k.ctype} k3_0 = ${nonlinear}0(
-            psi_I_0 + ${div}(k2_0, 2),
-            psi_I_1 + ${div}(k2_1, 2),
-            ${t} + ${dt} / 2);
-        ${psi_k.ctype} k3_1 = ${nonlinear}1(
-            psi_I_0 + ${div}(k2_0, 2),
-            psi_I_1 + ${div}(k2_1, 2),
-            ${t} + ${dt} / 2);
+        %for comp in range(components):
+        ${psi_k.ctype} k2_${comp} = ${nonlinear}${comp}(
+            ${idx_args},
+            %for c in range(components):
+            psi_I_${c} + ${div}(k1_${c}, 2),
+            %endfor
+            ${dW_args}
+            ${t} + ${dt} / 2, ${dt});
+        %endfor
 
-        ${psi_4.store_idx}(0, ${all_indices}, psi_I_0 + k3_0);
-        ${psi_4.store_idx}(1, ${all_indices}, psi_I_1 + k3_1);
+        %for comp in range(components):
+        ${psi_k.ctype} k3_${comp} = ${nonlinear}${comp}(
+            ${idx_args},
+            %for c in range(components):
+            psi_I_${c} + ${div}(k2_${c}, 2),
+            %endfor
+            ${dW_args}
+            ${t} + ${dt} / 2, ${dt});
+        %endfor
 
+        %for comp in range(components):
+        ${psi_4.store_idx}(${comp}, ${all_indices}, psi_I_${comp} + k3_${comp});
+        %endfor
+
+        %for comp in range(components):
         ${psi_k.store_idx}(
-            0, ${all_indices},
-            psi_I_0 + ${div}(k1_0, 6) + ${div}(k2_0, 3) + ${div}(k3_0, 3));
-        ${psi_k.store_idx}(
-            1, ${all_indices},
-            psi_I_1 + ${div}(k1_1, 6) + ${div}(k2_1, 3) + ${div}(k3_1, 3));
+            ${comp}, ${all_indices},
+            psi_I_${comp} + ${div}(k1_${comp}, 6) + ${div}(k2_${comp}, 3) + ${div}(k3_${comp}, 3));
+        %endfor
         """,
         guiding_array=state_arr.shape[1:],
         render_kwds=dict(
-            nonlinear=nonlinear_module,
-            dt=dtypes.c_constant(dt, real_dtype),
+            components=components,
+            nonlinear=nonlinear_wrapper,
+            diffusion=diffusion,
             div=functions.div(state_arr.dtype, numpy.int32, out_dtype=state_arr.dtype)))
 
 
-def get_nonlinear3(state_arr, real_dtype, nonlinear_module, dt):
+def get_nonlinear3(state_arr, nonlinear_wrapper, components, diffusion=None, dW_arr=None):
+
+    real_dtype = dtypes.real_for(state_arr.dtype)
+
     # k4 = N(D(psi_4), t + dt)
     # output = D(psi_k) + k4 / 6
     return PureParallel(
         [
             Parameter('output', Annotation(state_arr, 'o')),
             Parameter('kprop_psi_k', Annotation(state_arr, 'i')),
-            Parameter('kprop_psi_4', Annotation(state_arr, 'i')),
-            Parameter('t', Annotation(real_dtype))],
+            Parameter('kprop_psi_4', Annotation(state_arr, 'i'))]
+            + ([Parameter('dW', Annotation(dW_arr, 'i'))] if diffusion is not None else []) +
+            [Parameter('t', Annotation(real_dtype)),
+            Parameter('dt', Annotation(real_dtype))],
         """
         <%
+            if diffusion is None:
+                dW = None
+
             all_indices = ', '.join(idxs)
+            args = lambda prefix, num: list(map(lambda i: prefix + str(i), range(num)))
+            dW_args = args('dW_', diffusion.noise_sources) if diffusion is not None else []
+            k4_args = ", ".join(idxs[1:] + args('psi4_', components) + dW_args)
         %>
 
-        ${output.ctype} psi4_0 = ${kprop_psi_4.load_idx}(0, ${all_indices});
-        ${output.ctype} psi4_1 = ${kprop_psi_4.load_idx}(1, ${all_indices});
-        ${output.ctype} psik_0 = ${kprop_psi_k.load_idx}(0, ${all_indices});
-        ${output.ctype} psik_1 = ${kprop_psi_k.load_idx}(1, ${all_indices});
+        %for comp in range(components):
+        ${output.ctype} psi4_${comp} = ${kprop_psi_4.load_idx}(${comp}, ${all_indices});
+        ${output.ctype} psik_${comp} = ${kprop_psi_k.load_idx}(${comp}, ${all_indices});
+        %endfor
 
-        ${output.ctype} k4_0 = ${nonlinear}0(psi4_0, psi4_1, ${t} + ${dt});
-        ${output.ctype} k4_1 = ${nonlinear}1(psi4_0, psi4_1, ${t} + ${dt});
+        %if diffusion is not None:
+        %for ncomp in range(diffusion.noise_sources):
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        %endfor
+        %endif
 
-        ${output.store_idx}(0, ${all_indices}, psik_0 + ${div}(k4_0, 6));
-        ${output.store_idx}(1, ${all_indices}, psik_1 + ${div}(k4_1, 6));
+        %for comp in range(components):
+        ${output.ctype} k4_${comp} = ${nonlinear}${comp}(${k4_args}, ${t} + ${dt}, ${dt});
+        %endfor
+
+        %for comp in range(components):
+        ${output.store_idx}(${comp}, ${all_indices}, psik_${comp} + ${div}(k4_${comp}, 6));
+        %endfor
         """,
         guiding_array=state_arr.shape[1:],
         render_kwds=dict(
-            nonlinear=nonlinear_module,
-            dt=dtypes.c_constant(dt, real_dtype),
+            components=components,
+            nonlinear=nonlinear_wrapper,
+            diffusion=diffusion,
             div=functions.div(state_arr.dtype, numpy.int32, out_dtype=state_arr.dtype)))
 
 
@@ -161,8 +258,7 @@ class RK4IPStepper(Computation):
     namely Eqns. B.10 (p. 166).
     """
 
-    def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=-0.5, diffusion=None):
-        #state_arr, dt, box=None, kinetic_coeff=1, nonlinear_module=None):
+    def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=0.5, diffusion=None):
 
         real_dtype = dtypes.real_for(drift.dtype)
 
@@ -186,36 +282,50 @@ class RK4IPStepper(Computation):
             Parameter('dt', Annotation(real_dtype))])
 
         ksquared = get_ksquared(shape, box)
-        self._kprop = numpy.exp(ksquared * (-1j * kinetic_coeff * dt / 2)).astype(state_arr.dtype)
-        self._kprop_trf = Transformation(
+        self._kprop = (-ksquared * kinetic_coeff / 2).astype(real_dtype)
+        kprop_trf = Transformation(
             [
                 Parameter('output', Annotation(state_arr, 'o')),
                 Parameter('input', Annotation(state_arr, 'i')),
-                Parameter('kprop', Annotation(self._kprop, 'i'))],
+                Parameter('kprop', Annotation(self._kprop, 'i')),
+                Parameter('dt', Annotation(real_dtype))],
             """
-            ${kprop.ctype} kprop_coeff = ${kprop.load_idx}(${', '.join(idxs[2:])});
+            ${kprop.ctype} kprop = ${kprop.load_idx}(${', '.join(idxs[2:])});
+            ${output.ctype} kprop_coeff = ${polar_unit}(kprop * ${dt});
             ${output.store_same}(${mul}(${input.load_same}, kprop_coeff));
             """,
-            render_kwds=dict(mul=functions.mul(state_arr.dtype, self._kprop.dtype)))
+            render_kwds=dict(
+                mul=functions.mul(state_arr.dtype, state_arr.dtype),
+                polar_unit=functions.polar_unit(real_dtype)))
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop.parameter.output.connect(
-            self._kprop_trf, self._kprop_trf.input,
-            output_prime=self._kprop_trf.output,
-            kprop=self._kprop_trf.kprop)
+            kprop_trf, kprop_trf.input,
+            output_prime=kprop_trf.output, kprop=kprop_trf.kprop, dt=kprop_trf.dt)
 
-        nonlinear_wrapper = get_nonlinear_wrapper(state_arr.dtype, nonlinear_module, dt)
-        self._N1 = get_nonlinear1(state_arr, real_dtype, nonlinear_wrapper)
-        self._N2 = get_nonlinear2(state_arr, real_dtype, nonlinear_wrapper, dt)
-        self._N3 = get_nonlinear3(state_arr, real_dtype, nonlinear_wrapper, dt)
+        nonlinear_wrapper = get_nonlinear_wrapper(
+            state_arr.dtype, len(state_arr.shape) - 2, drift, diffusion=diffusion)
+        self._N1 = get_nonlinear1(
+            state_arr, nonlinear_wrapper, drift.components, diffusion=diffusion, dW_arr=dW_arr)
+        self._N2 = get_nonlinear2(
+            state_arr, nonlinear_wrapper, drift.components, diffusion=diffusion, dW_arr=dW_arr)
+        self._N3 = get_nonlinear3(
+            state_arr, nonlinear_wrapper, drift.components, diffusion=diffusion, dW_arr=dW_arr)
 
-    def _add_kprop(self, plan, output, input_, kprop_device):
+    def _add_kprop(self, plan, output, input_, kprop_device, dt):
         temp = plan.temp_array_like(output)
-        plan.computation_call(self._fft_with_kprop, temp, kprop_device, input_)
+        plan.computation_call(self._fft_with_kprop, temp, kprop_device, dt, input_)
         plan.computation_call(self._fft, output, temp, inverse=True)
 
-    def _build_plan(self, plan_factory, device_params, output, input_, t):
+    def _build_plan(self, plan_factory, device_params, *args):
+
+        if self._noise:
+            output, input_, dW, t, dt = args
+            t_args = (dW, t, dt)
+        else:
+            output, input_, t, dt = args
+            t_args = (t, dt)
 
         plan = plan_factory()
 
@@ -223,13 +333,13 @@ class RK4IPStepper(Computation):
 
         # psi_I = D(psi)
         psi_I = plan.temp_array_like(output)
-        self._add_kprop(plan, psi_I, input_, kprop_device)
+        self._add_kprop(plan, psi_I, input_, kprop_device, dt)
 
         # k1 = D(N(psi, t))
         k1 = plan.temp_array_like(output)
         temp = plan.temp_array_like(output)
-        plan.computation_call(self._N1, temp, input_, t)
-        self._add_kprop(plan, k1, temp, kprop_device)
+        plan.computation_call(self._N1, temp, input_, *t_args)
+        self._add_kprop(plan, k1, temp, kprop_device, dt)
 
         # k2 = N(psi_I + k1 / 2, t + dt / 2)
         # k3 = N(psi_I + k2 / 2, t + dt / 2)
@@ -237,14 +347,14 @@ class RK4IPStepper(Computation):
         # psi_k = psi_I + (k1 + 2(k2 + k3)) / 6 (argument for the final k-propagation)
         psi_4 = plan.temp_array_like(output)
         psi_k = plan.temp_array_like(output)
-        plan.computation_call(self._N2, psi_k, psi_4, psi_I, k1, t)
+        plan.computation_call(self._N2, psi_k, psi_4, psi_I, k1, *t_args)
 
         # k4 = N(D(psi_4), t + dt)
         # output = D(psi_k) + k4 / 6
         kprop_psi_k = plan.temp_array_like(output)
-        self._add_kprop(plan, kprop_psi_k, psi_k, kprop_device)
+        self._add_kprop(plan, kprop_psi_k, psi_k, kprop_device, dt)
         kprop_psi_4 = plan.temp_array_like(output)
-        self._add_kprop(plan, kprop_psi_4, psi_4, kprop_device)
-        plan.computation_call(self._N3, output, kprop_psi_k, kprop_psi_4, t)
+        self._add_kprop(plan, kprop_psi_4, psi_4, kprop_device, dt)
+        plan.computation_call(self._N3, output, kprop_psi_k, kprop_psi_4, *t_args)
 
         return plan
