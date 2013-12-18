@@ -37,7 +37,8 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
             Parameter('kinput', Annotation(state_arr, 'i')),
             Parameter('ai', Annotation(real_dtype)),
             Parameter('bi', Annotation(real_dtype)),
-            Parameter('ci', Annotation(real_dtype))]
+            Parameter('ci', Annotation(real_dtype)),
+            Parameter('stage', Annotation(numpy.int32))]
             + ([Parameter('dW', Annotation(dW_arr, 'i'))] if diffusion is not None else []) +
             [Parameter('t', Annotation(real_dtype)),
             Parameter('dt', Annotation(real_dtype))],
@@ -55,7 +56,15 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
         %>
 
         %for comp in range(components):
-        ${output.ctype} omega_${comp} = ${omega.load_idx}(${comp}, ${all_indices});
+        ${output.ctype} omega_${comp};
+        if (${stage} == 0)
+        {
+            omega_${comp} = ${dtypes.c_constant(0, output.dtype)};
+        }
+        else
+        {
+            omega_${comp} = ${omega.load_idx}(${comp}, ${all_indices});
+        }
         ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
         ${output.ctype} kpsi_${comp} = ${kinput.load_idx}(${comp}, ${all_indices});
         ${output.ctype} dpsi_${comp};
@@ -86,7 +95,10 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
         %for comp in range(components):
         new_omega = ${mul_cr}(omega_${comp}, ${ai}) + dpsi_${comp};
         new_u = psi_${comp} + ${mul_cr}(new_omega, ${bi});
-        ${omega.store_idx}(${comp}, ${all_indices}, new_omega);
+        if (${stage} < 5)
+        {
+            ${omega.store_idx}(${comp}, ${all_indices}, new_omega);
+        }
         ${output.store_idx}(${comp}, ${all_indices}, new_u);
         %endfor
         """,
@@ -178,10 +190,10 @@ class RK46NLStepper(Computation):
 
         data_out = input_
 
-        for i in range(6):
+        for stage in range(6):
 
             data_in = data_out
-            if i == 5:
+            if stage == 5:
                 data_out = output
             else:
                 data_out = result
@@ -191,6 +203,6 @@ class RK46NLStepper(Computation):
 
             plan.computation_call(
                 self._xpropagate, data_out, omega, data_in, kdata,
-                self._ai[i], self._bi[i], self._ci[i], *dt_args)
+                self._ai[stage], self._bi[stage], self._ci[stage], stage, *dt_args)
 
         return plan
