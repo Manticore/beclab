@@ -57,7 +57,7 @@ def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
 
         %if diffusion is not None:
         %for ncomp in range(noise_sources):
-        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${comp}, ${all_indices});
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
         %endfor
         %endif
 
