@@ -65,7 +65,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     samples = 200 # how many samples to take during simulation
     steps = samples * 50 # number of time steps (should be multiple of samples)
     gamma = 0.0 if no_losses else 0.2
-    f_detuning = -37
+    f_detuning = 37
     f_rabi = 350
     N = 55000
     state_dtype = numpy.complex128
