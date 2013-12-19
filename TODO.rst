@@ -19,5 +19,3 @@ Core
 
 Tests
 =====
-
-- Run tests for complex64

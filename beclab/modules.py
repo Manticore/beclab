@@ -30,6 +30,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
             <%
                 s_ctype = dtypes.ctype(s_dtype)
                 r_ctype = dtypes.ctype(r_dtype)
+                r_const = lambda x: dtypes.c_constant(x, r_dtype)
             %>
             %for comp in range(components):
             INLINE WITHIN_KERNEL ${s_ctype} ${prefix}${comp}(
@@ -43,12 +44,16 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
             {
                 // Potential
                 %for dim in range(grid.dimensions):
-                const ${r_ctype} x_${dim} = ${grid.xs[dim][0]} + ${grid.dxs[dim]} * idx_${dim};
+                const ${r_ctype} x_${dim} =
+                    ${r_const(grid.xs[dim][0])} + ${r_const(grid.dxs[dim])} * idx_${dim};
                 %endfor
-                const ${r_ctype} V = ${states[comp].m / HBAR} * (
-                    %for dim in range(grid.dimensions):
-                    + ${(2 * numpy.pi * freqs[dim]) ** 2} * x_${dim} * x_${dim}
-                    %endfor
+                const ${r_ctype} V =
+                    ${r_const(states[comp].m / HBAR)}
+                    * (
+                        %for dim in range(grid.dimensions):
+                        + ${r_const((2 * numpy.pi * freqs[dim]) ** 2)}
+                            * x_${dim} * x_${dim}
+                        %endfor
                     ) / 2;
 
 
@@ -65,7 +70,8 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
                         g = scattering[comp, other_comp]
                     %>
                     %if g != 0:
-                    + ${g / HBAR} * (${norm}(psi_${other_comp}) - ${correction})
+                    + ${r_const(g / HBAR)}
+                        * (${norm}(psi_${other_comp}) - ${r_const(correction)})
                     %endif
                     %endfor
                     ;
@@ -93,7 +99,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
                     %if kappa > 0 and ls[comp] > 0:
                     - ${mul_sr}(
                         psi_${comp},
-                        ${kappa} * ${ls[comp]}
+                        ${r_const(kappa * ls[comp])}
                             %for other_comp in range(components):
                                 <%
                                     pwr = ls[other_comp]
@@ -158,6 +164,7 @@ def get_diffusion(state_dtype, grid, components, losses):
                 r_dtype = dtypes.real_for(s_dtype)
                 s_ctype = dtypes.ctype(s_dtype)
                 r_ctype = dtypes.ctype(r_dtype)
+                r_const = lambda x: dtypes.c_constant(x, r_dtype)
             %>
             %for comp in range(components):
             %for noise_source in range(noise_sources):
@@ -180,7 +187,7 @@ def get_diffusion(state_dtype, grid, components, losses):
                 %else:
                     %if sum(ls) > 1:
                     return ${conj}(${mul}(
-                        ${coeff}
+                        ${r_const(coeff)}
                         %for other_comp in range(components):
                             <%
                                 pwr = ls[other_comp]
@@ -193,7 +200,7 @@ def get_diffusion(state_dtype, grid, components, losses):
                         %endfor
                         ));
                     %else:
-                    return COMPLEX_CTR(${s_ctype})(${coeff}, 0);
+                    return COMPLEX_CTR(${s_ctype})(${r_const(coeff)}, 0);
                     %endif
                 %endif
             }
