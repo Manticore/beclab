@@ -163,7 +163,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     pz = (density[:,1] - density[:,0]) / (density[:,1] + density[:,0])
     s.imshow(pz.T, interpolation='nearest', origin='lower', aspect='auto',
         extent=(0, interval) + (grid.xs[-1][0] * 1e6, grid.xs[-1][-1] * 1e6),
-        vmin=-0.5, vmax=0.5)
+        vmin=-1, vmax=1)
     s.set_xlabel('$t$')
     s.set_ylabel('$x$')
     fig.savefig('visibility_density_Pz_' + suffix + '.pdf')
