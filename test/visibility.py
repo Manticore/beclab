@@ -156,7 +156,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
             vmin=0, vmax=axial_n_max)
         s.set_xlabel('$t$')
         s.set_ylabel('$x$')
-        fig.savefig('visibility_density_' + str(comp) + '_' + suffix + '.pdf')
+        fig.savefig('visibility_density_' + str(comp) + suffix + '.pdf')
 
     fig = plt.figure()
     s = fig.add_subplot(111)
@@ -166,7 +166,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
         vmin=-1, vmax=1)
     s.set_xlabel('$t$')
     s.set_ylabel('$x$')
-    fig.savefig('visibility_density_Pz_' + suffix + '.pdf')
+    fig.savefig('visibility_density_Pz' + suffix + '.pdf')
 
     # Plot population
     fig = plt.figure()
