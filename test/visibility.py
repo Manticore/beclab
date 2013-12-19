@@ -111,7 +111,6 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     psi_gpu = thr.to_device(psi0.astype(state_dtype))
 
     bs = BeamSplitter(thr, psi_gpu, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
-    bs(psi_gpu, 0, numpy.pi / 2)
 
     # Prepare integrator components
     drift = get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=wigner)
@@ -135,6 +134,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     # Integrate
     psi_temp = thr.empty_like(psi_gpu)
     psi_collector = PsiCollector(thr, grid, psi_temp, bs, wigner=wigner)
+    bs(psi_gpu, 0, numpy.pi / 2)
     result, errors = integrator(
         psi_gpu, 0, interval, steps, samples=samples, collectors=[psi_collector])
 
