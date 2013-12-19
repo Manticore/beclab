@@ -127,7 +127,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
         diffusion=diffusion)
 
     if wigner:
-        wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.rand())
+        wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.randint(0, 2**32-1))
     integrator = FixedStepIntegrator(
         thr, stepper,
         wiener=wiener if wigner else None)
