@@ -110,7 +110,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
                                 * n_${other_comp}
                                 %endfor
                             %endfor
-                        ))
+                        )
                     %endif
                     %endfor
                     ;
@@ -177,7 +177,7 @@ def get_diffusion(state_dtype, grid, components, losses):
                 %for dim in range(dims):
                 const int idx_${dim},
                 %endfor
-                %for c in range(components)
+                %for c in range(components):
                 const ${s_ctype} psi_${c},
                 %endfor
                 ${r_ctype} t)
