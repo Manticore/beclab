@@ -60,7 +60,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
 
     # Simulation parameters
     lattice_size = (8, 8, 64) # spatial lattice points
-    paths = 16 # simulation paths
+    paths = 16 if wigner else 1 # simulation paths
     interval = 0.12 # time interval
     samples = 200 # how many samples to take during simulation
     steps = samples * 50 # number of time steps (should be multiple of samples)
@@ -123,7 +123,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     stepper = stepper_cls(
         grid.shape, grid.box, drift,
         kinetic_coeff=const.HBAR / (2 * states[0].m),
-        ensembles=paths if wigner else 1,
+        ensembles=paths,
         diffusion=diffusion)
 
     if wigner:
