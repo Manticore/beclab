@@ -103,10 +103,10 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     # Initial noise
     if wigner:
         random_normals = (
-            rng.normal(size=(2, paths, lattice_size)) +
-            1j * rng.normal(size=(2, paths, lattice_size))) / 2
+            rng.normal(size=(2, paths,) + lattice_size) +
+            1j * rng.normal(size=(2, paths) + lattice_size)) / 2
         fft_scale = numpy.sqrt(grid.dV / grid.size)
-        psi0 = numpy.fft.ifft(random_normals) / fft_scale + psi0
+        psi0 = numpy.fft.ifftn(random_normals, axes=range(2, len(psi0.shape))) / fft_scale + psi0
 
     psi_gpu = thr.to_device(psi0.astype(state_dtype))
 
