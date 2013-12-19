@@ -87,14 +87,13 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
                 const ${r_ctype} n_${norm_comp} = ${norm}(psi_${norm_comp});
                 %endfor
 
-                const ${r_ctype} L =
-                    0
+                const ${s_ctype} L =
+                    ${dtypes.c_constant(0, s_dtype)}
                     %for kappa, ls in losses:
                     %if kappa > 0 and ls[comp] > 0:
-                    - ${kappa} * ${ls[comp]} * ${mul_sr}(
+                    - ${mul_sr}(
                         psi_${comp},
-                        (
-                            1
+                        ${kappa} * ${ls[comp]}
                             %for other_comp in range(components):
                                 <%
                                     pwr = ls[other_comp]
