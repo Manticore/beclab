@@ -45,7 +45,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
                 %for dim in range(grid.dimensions):
                 const ${r_ctype} x_${dim} = ${grid.xs[dim][0]} + ${grid.dxs[dim]} * idx_${dim};
                 %endfor
-                const ${r_ctype} V = ${states[comp].m} * (
+                const ${r_ctype} V = ${states[comp].m / HBAR} * (
                     %for dim in range(grid.dimensions):
                     + ${(2 * numpy.pi * freqs[dim]) ** 2} * x_${dim} * x_${dim}
                     %endfor
@@ -65,7 +65,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
                         g = scattering[comp, other_comp]
                     %>
                     %if g != 0:
-                    + ${g} * (${norm}(psi_${other_comp}) - ${correction})
+                    + ${g / HBAR} * (${norm}(psi_${other_comp}) - ${correction})
                     %endif
                     %endfor
                     ;
@@ -111,7 +111,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
 
 
                 const ${s_ctype} unitary = ${mul_ss}(
-                    COMPLEX_CTR(${s_ctype})(0, ${-1 / HBAR}),
+                    COMPLEX_CTR(${s_ctype})(0, -1),
                     ${mul_sr}(psi_${comp}, V + U));
 
                 return unitary + L;
