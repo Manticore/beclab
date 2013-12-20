@@ -96,7 +96,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
 
     # Initial noise
     if wigner:
-        psi0 = to_wigner(psi0)
+        psi0 = to_wigner(grid, rng, psi0)
 
     psi_gpu = thr.to_device(psi0.astype(state_dtype))
 

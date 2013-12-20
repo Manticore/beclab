@@ -24,7 +24,7 @@ def get_TF_state(grid, state, freqs, N):
     return psi_TF
 
 
-def to_wigner(grid, psi):
+def to_wigner(grid, rng, psi):
     random_normals = (rng.normal(size=psi.shape) + 1j * rng.normal(size=psi.shape)) / 2
     fft_scale = numpy.sqrt(grid.dV / grid.size)
     return numpy.fft.ifftn(random_normals, axes=range(2, len(psi.shape))) / fft_scale + psi
