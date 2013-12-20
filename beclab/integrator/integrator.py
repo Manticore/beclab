@@ -19,22 +19,25 @@ def _transpose_results(results):
     return {key:numpy.array(val) for key, val in new_results.items()}
 
 
-def _collect(data, t, collectors):
-    t1 = time.time()
-    sample_dict = dict(time=t)
-    for collector in collectors:
-        sample = collector(data, t)
-        sample_dict.update(sample)
-    t_collector = time.time() - t1
-    return sample_dict, t_collector
+class IntegrationInfo:
+
+    def __init__(self, t_normal, t_double, t_collectors, error_strong, errors):
+        self.error_strong = error_strong
+        self.errors = errors
+
+        self.t_integration = t_normal + t_double
+        self.t_collectors = t_collectors
+        self.t_normal = t_normal
+        self.t_double = t_double
 
 
 class FixedStepIntegrator:
 
-    def __init__(self, thr, stepper, wiener=None, verbose=True):
+    def __init__(self, thr, stepper, wiener=None, verbose=True, profile=False):
 
         self.thr = thr
         self.verbose = verbose
+        self.profile = profile
 
         self.stepper = stepper.compile(thr)
         if wiener is not None:
@@ -46,6 +49,17 @@ class FixedStepIntegrator:
             self.dW_state = self.thr.empty_like(wiener.parameter.state)
         else:
             self.noise = False
+
+    def _collect(self, data, t, collectors):
+        if self.profile:
+            self.thr.synchronize()
+        t1 = time.time()
+        sample_dict = dict(time=t)
+        for collector in collectors:
+            sample = collector(data, t)
+            sample_dict.update(sample)
+        t_collector = time.time() - t1
+        return sample_dict, t_collector
 
     def _integrate(self, data, double_step, t_start, dt, steps, samples=None, collectors=None):
 
@@ -64,7 +78,7 @@ class FixedStepIntegrator:
         t_simulation = time.time()
 
         if not double_step:
-            sample_dict, t_collector = _collect(data, t, collectors)
+            sample_dict, t_collector = self._collect(data, t, collectors)
             results.append(sample_dict)
             t_collectors += t_collector
 
@@ -94,7 +108,7 @@ class FixedStepIntegrator:
 
             if not double_step:
                 if (step + 1) % (steps // samples) == 0:
-                    sample_dict, t_collector = _collect(data, t, collectors)
+                    sample_dict, t_collector = self._collect(data, t, collectors)
                     results.append(sample_dict)
                     t_collectors += t_collector
 
@@ -109,10 +123,10 @@ class FixedStepIntegrator:
             print("Collectors time: {f:.1f}%".format(f=t_collectors / t_total * 100))
 
         if double_step:
-            sample_dict, _ = _collect(data, t, collectors)
-            return [sample_dict]
+            sample_dict, _ = self._collect(data, t, collectors)
+            return [sample_dict], t_total
         else:
-            return results
+            return results, t_total - t_collectors, t_collectors
 
     def __call__(self, data_dev, t_start, t_end, steps, samples=1, collectors=None):
 
@@ -128,11 +142,11 @@ class FixedStepIntegrator:
 
         # double step (to estimate the convergence)
         data_double_dev = self.thr.copy_array(data_dev)
-        results_double = self._integrate(
+        results_double, t_double = self._integrate(
             data_double_dev, True, t_start, dt * 2, steps // 2, collectors=collectors)
 
         # actual integration
-        results = self._integrate(
+        results, t_normal, t_collectors = self._integrate(
             data_dev, False, t_start, dt, steps, samples=samples, collectors=collectors)
 
         # calculate the error (separately for each ensemble)
@@ -144,7 +158,7 @@ class FixedStepIntegrator:
             print("Strong error: ", data_error)
 
         # calculate result errors
-        errors = dict(data_strong=data_error)
+        errors = {}
         for key in results[-1]:
             if key == 'time':
                 continue
@@ -159,4 +173,6 @@ class FixedStepIntegrator:
             if self.verbose:
                 print("Error in " + key + ":", errors[key])
 
-        return _transpose_results(results), errors
+        info = IntegrationInfo(t_normal, t_double, t_collectors, data_error, errors)
+
+        return _transpose_results(results), info
