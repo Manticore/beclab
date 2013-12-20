@@ -199,5 +199,5 @@ if __name__ == '__main__':
 
     for label, cls in tests:
         run_test(thr, label, cls, no_losses=True, wigner=False)
-        #run_test(thr, label, cls, wigner=False)
-        #run_test(thr, label, cls, wigner=True)
+        run_test(thr, label, cls, wigner=False)
+        run_test(thr, label, cls, wigner=True)
