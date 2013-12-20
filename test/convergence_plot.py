@@ -28,14 +28,14 @@ for label in labels:
         N_errors.append(result['N_convergence'])
         SZ2_errors.append(result['SZ2_convergence'])
         N_diffs.append(result['N_diff'])
-    s.plot(step_nums, strong_errors, label=plot_label + ", strong errors",
-        color=colors[plot_label], linestyle='-')
-    s.plot(step_nums, N_errors, label=plot_label + ", N errors",
-        color=colors[plot_label], linestyle='--')
-    s.plot(step_nums, SZ2_errors, label=plot_label + ", Sz^2 errors",
-        color=colors[plot_label], linestyle=':')
-    s.plot(step_nums, N_diffs, label=plot_label + ", N diffs",
-        color=colors[plot_label], linestyle='-.')
+    s.plot(step_nums, strong_errors, label=label + ", strong errors",
+        color=colors[label], linestyle='-')
+    s.plot(step_nums, N_errors, label=label + ", N errors",
+        color=colors[label], linestyle='--')
+    s.plot(step_nums, SZ2_errors, label=label + ", Sz^2 errors",
+        color=colors[label], linestyle=':')
+    s.plot(step_nums, N_diffs, label=label + ", N diffs",
+        color=colors[label], linestyle='-.')
 
 s.legend(fontsize=5, loc='lower left')
 fig.savefig('convergence_vals.pdf')
@@ -43,8 +43,8 @@ fig.savefig('convergence_vals.pdf')
 
 fig = plt.figure()
 s = fig.add_subplot(111, xlabel='Steps', ylabel='Time (s)')
-s.set_xscale('log', basex=2)
-s.set_yscale('log', basey=2)
+s.set_xscale('log', basex=10)
+s.set_yscale('log', basey=10)
 for label in labels:
     step_nums = []
     times = []
@@ -52,6 +52,6 @@ for label in labels:
         result = results[label][steps]
         step_nums.append(steps)
         times.append(result['time'])
-    s.plot(step_nums, times, label=plot_label)
+    s.plot(step_nums, times, label=label)
 s.legend(fontsize=5, loc='upper left')
 fig.savefig('convergence_times.pdf')
