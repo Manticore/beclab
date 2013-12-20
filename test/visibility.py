@@ -18,6 +18,7 @@ from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
 from beclab.beam_splitter import BeamSplitter
 import beclab.constants as const
+from beclab.ground_state import get_TF_state, to_wigner
 
 
 class PsiCollector:
@@ -85,14 +86,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     grid = UniformGrid(lattice_size, box_3D(N, freqs, states[0]))
 
     # Initial TF state
-    mu = const.muTF3D(freqs, N, states[0])
-    zz, yy, xx = numpy.meshgrid(*grid.xs, indexing="ij")
-    V = states[0].m / 2 * sum(
-        (2 * numpy.pi * f * coords) ** 2 for f, coords in zip(freqs, [zz, yy, xx]))
-    psi_TF = numpy.sqrt((mu - V).clip(0) / scattering[0, 0])
-    # renormalize to account for coarse grids
-    N0 = (numpy.abs(psi_TF) ** 2).sum() * grid.dV
-    psi_TF *= numpy.sqrt(N / N0)
+    psi_TF = get_TF_state(grid, states[0], freqs, N)
     axial_n_max = ((numpy.abs(psi_TF) ** 2).sum((0, 1)) * grid.dxs[0] * grid.dxs[1]).max()
 
     # Two-component state
@@ -102,11 +96,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
 
     # Initial noise
     if wigner:
-        random_normals = (
-            rng.normal(size=(2, paths,) + lattice_size) +
-            1j * rng.normal(size=(2, paths) + lattice_size)) / 2
-        fft_scale = numpy.sqrt(grid.dV / grid.size)
-        psi0 = numpy.fft.ifftn(random_normals, axes=range(2, len(psi0.shape))) / fft_scale + psi0
+        psi0 = to_wigner(psi0)
 
     psi_gpu = thr.to_device(psi0.astype(state_dtype))
 
