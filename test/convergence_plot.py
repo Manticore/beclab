@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 with open('convergence.pickle', 'rb') as f:
     results = pickle.load(f)
 
-labels = ["SS-CD", "CD", "RK4IP", "RK46-NL"]
-colors = {"SS-CD": 'b', "CD": 'r', "RK4IP": 'g', "RK46-NL": 'y'}
+labels = ["SS-CD", "RK4IP", "RK46-NL"]
+colors = {"SS-CD": 'b', "CD": 'y', "RK4IP": 'r', "RK46-NL": 'g'}
 
 fig = plt.figure()
 s = fig.add_subplot(111, xlabel='Steps', ylabel='Convergence')
@@ -34,8 +34,12 @@ for label in labels:
         color=colors[label], linestyle='--')
     s.plot(step_nums, SZ2_errors, label=label + ", Sz^2 errors",
         color=colors[label], linestyle=':')
-    s.plot(step_nums, N_diffs, label=label + ", N diffs",
-        color=colors[label], linestyle='-.')
+    #s.plot(step_nums, N_diffs, label=label + ", N diffs",
+    #    color=colors[label], linestyle='-.')
+
+step_nums = numpy.array(step_nums)
+s.plot(step_nums, 1e6 * (1. / step_nums) ** 2, color='grey', linestyle=':', label='1/dt^2 reference')
+s.plot(step_nums, 1e12 * (1. / step_nums) ** 4, color='grey', linestyle='--', label='1/dt^4 reference')
 
 s.legend(fontsize=5, loc='lower left')
 fig.savefig('convergence_vals.pdf')
