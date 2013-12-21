@@ -2,7 +2,7 @@ import numpy
 
 import reikna.cluda.dtypes as dtypes
 import reikna.cluda.functions as functions
-from reikna.core import Computation, Parameter, Annotation, Type, Transformation
+from reikna.core import Computation, Parameter, Annotation, Transformation
 from reikna.cbrng import CBRNG
 
 
@@ -28,7 +28,7 @@ def scale_sqrt_param(arr_t, coeff_dtype):
 
 
 class Wiener(Computation):
-    """
+    r"""
     Generates differentials of a Wiener process W(x,t) on a regular grid, that is
 
         W(x,t) = \sum_{n \in B} \phi_n w_n(t),
@@ -68,10 +68,6 @@ class Wiener(Computation):
 
     def double_step(self):
         return WienerDouble(self.parameter.dW, self._normalization, seed=self._seed)
-
-        self.wiener = wiener.compile(thr)
-        self.wiener2 = wiener.combine_with()
-        print(self.wiener2.signature)
 
 
 class WienerDouble(Computation):

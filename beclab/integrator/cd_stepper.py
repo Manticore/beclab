@@ -1,8 +1,7 @@
 import numpy
 
-from reikna.helpers import product
-from reikna.cluda import dtypes, Module, Snippet, functions
-from reikna.core import Computation, Parameter, Annotation, Transformation, Type
+from reikna.cluda import dtypes, functions
+from reikna.core import Computation, Parameter, Annotation, Type
 
 from reikna.fft import FFT
 from reikna.pureparallel import PureParallel

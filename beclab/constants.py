@@ -103,8 +103,8 @@ def get_interaction_constants(B, *states):
     raise NotImplementedError("Unknown B " + str(B) + " and states: " + repr(states))
 
 
-def get_effective_area(f1, f2):
-    eff_length = lambda f:  numpy.sqrt(self.hbar / (self.m * 2 * numpy.pi * f))
+def get_effective_area(m, f1, f2):
+    eff_length = lambda f:  numpy.sqrt(HBAR / (m * 2 * numpy.pi * f))
     return 2.0 * numpy.pi * eff_length(f1) * eff_length(f2)
 
 

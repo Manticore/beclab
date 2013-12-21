@@ -2,7 +2,6 @@ import numpy
 
 import reikna.cluda.dtypes as dtypes
 import reikna.cluda.functions as functions
-import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import Drift, Diffusion

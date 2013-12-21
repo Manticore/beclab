@@ -1,26 +1,12 @@
 import numpy
 
-from reikna.helpers import product
-from reikna.cluda import dtypes, Module, Snippet, functions
-from reikna.core import Computation, Parameter, Annotation, Transformation, Type
+from reikna.cluda import dtypes, functions
+from reikna.core import Computation, Parameter, Annotation, Type
 
 from reikna.fft import FFT
 from reikna.pureparallel import PureParallel
 
 from beclab.integrator.helpers import get_ksquared, get_kprop_exp_trf
-
-
-def get_ksquared(shape, box):
-    ks = [
-        2 * numpy.pi * numpy.fft.fftfreq(size, length / size)
-        for size, length in zip(shape, box)]
-
-    if len(shape) > 1:
-        full_ks = numpy.meshgrid(*ks, indexing='ij')
-    else:
-        full_ks = ks
-
-    return sum([full_k ** 2 for full_k in full_ks])
 
 
 def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):

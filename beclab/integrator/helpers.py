@@ -1,6 +1,8 @@
 import numpy
 
 import reikna.cluda.dtypes as dtypes
+import reikna.cluda.functions as functions
+from reikna.core import Parameter, Annotation, Transformation
 
 
 def get_ksquared(shape, box):

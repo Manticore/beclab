@@ -71,7 +71,6 @@ class FixedStepIntegrator:
 
         results = []
         step = 0
-        sample = 0
         t = t_start
 
         t_collectors = 0

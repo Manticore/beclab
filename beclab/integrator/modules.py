@@ -1,5 +1,4 @@
 from reikna.helpers import product
-from reikna.cluda import Module
 import reikna.cluda.dtypes as dtypes
 
 
@@ -28,12 +27,3 @@ class Diffusion:
             process(self.module), self.dtype,
             components=self.components, noise_sources=self.noise_sources,
             real_noise=self.real_noise)
-
-
-class Grid:
-
-    def __init__(self, shape, box):
-        self.shape = shape
-        self.box = box
-        self.dV = product(box) / product(shape)
-
