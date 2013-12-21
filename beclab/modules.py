@@ -9,7 +9,8 @@ from beclab.grid import UniformGrid
 import beclab.constants as const
 
 
-def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False):
+def get_drift(state_dtype, grid, states, freqs, scattering,
+        losses=None, wigner=False, imaginary_time=False):
     """
     freqs, array(dims): trap frequencies (Hz).
     scattering, array(comps, comps): two-body elastic interaction constants.
@@ -20,6 +21,8 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
     """
     assert isinstance(grid, UniformGrid)
 
+    if losses is None:
+        losses = []
     real_dtype = dtypes.real_for(state_dtype)
     components = scattering.shape[0]
 
@@ -116,7 +119,13 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
 
 
                 const ${s_ctype} unitary = ${mul_ss}(
-                    COMPLEX_CTR(${s_ctype})(0, -1),
+                    COMPLEX_CTR(${s_ctype})(
+                        %if imaginary_time:
+                        -1, 0
+                        %else:
+                        0, -1
+                        %endif
+                        ),
                     ${mul_sr}(psi_${comp}, V + U));
 
                 return unitary + L;
@@ -124,6 +133,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=False
             %endfor
             """,
             render_kwds=dict(
+                imaginary_time=imaginary_time,
                 HBAR=const.HBAR,
                 states=states,
                 grid=grid,
