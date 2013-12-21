@@ -131,13 +131,11 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     N_mean = result['N_mean']
     N_err = result['N_err']
     density = result['axial_density']
-    print(density.shape)
     N_exact = N * numpy.exp(-gamma * result['time'] * 2)
 
     suffix = ('_wigner' if wigner else '') + ('_no-losses' if no_losses else '') + '_' + label
 
     # Plot density
-    print((grid.xs[-1][0] * 1e6, grid.xs[-1][-1] * 1e6))
     for comp in (0, 1):
         fig = plt.figure()
         s = fig.add_subplot(111)
