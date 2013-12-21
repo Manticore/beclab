@@ -7,18 +7,7 @@ from reikna.core import Computation, Parameter, Annotation, Transformation, Type
 from reikna.fft import FFT
 from reikna.pureparallel import PureParallel
 
-
-def get_ksquared(shape, box):
-    ks = [
-        2 * numpy.pi * numpy.fft.fftfreq(size, length / size)
-        for size, length in zip(shape, box)]
-
-    if len(shape) > 1:
-        full_ks = numpy.meshgrid(*ks, indexing='ij')
-    else:
-        full_ks = ks
-
-    return sum([full_k ** 2 for full_k in full_ks])
+from beclab.integrator.helpers import get_ksquared, get_kprop_trf
 
 
 def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
@@ -115,7 +104,7 @@ class RK46NLStepper(Computation):
     6-step 4th order RK optimized for minimum dissipation and minimum temporary space.
     """
 
-    def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=0.5, diffusion=None):
+    def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=0.5j, diffusion=None):
 
         real_dtype = dtypes.real_for(drift.dtype)
 
@@ -139,20 +128,8 @@ class RK46NLStepper(Computation):
             Parameter('dt', Annotation(real_dtype))])
 
         ksquared = get_ksquared(shape, box)
-        self._kprop = (-ksquared * kinetic_coeff).astype(real_dtype)
-        kprop_trf = Transformation(
-            [
-                Parameter('output', Annotation(state_arr, 'o')),
-                Parameter('input', Annotation(state_arr, 'i')),
-                Parameter('kprop', Annotation(self._kprop, 'i'))],
-            """
-            ${kprop.ctype} kprop = ${kprop.load_idx}(${', '.join(idxs[2:])});
-            ${output.ctype} kprop_coeff = COMPLEX_CTR(${output.ctype})(0, kprop);
-            ${output.store_same}(${mul}(${input.load_same}, kprop_coeff));
-            """,
-            render_kwds=dict(
-                mul=functions.mul(state_arr.dtype, state_arr.dtype),
-                ))
+        self._kprop = (-ksquared).astype(real_dtype)
+        kprop_trf = get_kprop_trf(state_arr, self._kprop, kinetic_coeff)
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))

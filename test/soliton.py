@@ -224,7 +224,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     # Prepare integrator components
     drift = get_drift(state_dtype, U, gamma, dx, wigner=wigner)
     stepper = stepper_cls((lattice_size,), (domain[1] - domain[0],), drift,
-        kinetic_coeff=1,
+        kinetic_coeff=1j,
         ensembles=paths if wigner else 1,
         diffusion=get_diffusion(state_dtype, gamma) if wigner else None)
 

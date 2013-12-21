@@ -7,6 +7,8 @@ from reikna.core import Computation, Parameter, Annotation, Transformation, Type
 from reikna.fft import FFT
 from reikna.pureparallel import PureParallel
 
+from beclab.integrator.helpers import get_ksquared, get_kprop_exp_trf
+
 
 def get_ksquared(shape, box):
     ks = [
@@ -102,7 +104,7 @@ class SSCDStepper(Computation):
     """
 
     def __init__(self, shape, box, drift,
-            ensembles=1, kinetic_coeff=0.5, diffusion=None, iterations=3):
+            ensembles=1, kinetic_coeff=0.5j, diffusion=None, iterations=3):
 
         real_dtype = dtypes.real_for(drift.dtype)
 
@@ -126,21 +128,14 @@ class SSCDStepper(Computation):
             Parameter('dt', Annotation(real_dtype))])
 
         ksquared = get_ksquared(shape, box)
-        self._kprop = (-ksquared * kinetic_coeff / 2).astype(real_dtype)
-        kprop_trf = Transformation(
-            [
-                Parameter('output', Annotation(state_arr, 'o')),
-                Parameter('input', Annotation(state_arr, 'i')),
-                Parameter('kprop', Annotation(self._kprop, 'i')),
-                Parameter('dt', Annotation(real_dtype))],
-            """
-            ${kprop.ctype} kprop = ${kprop.load_idx}(${', '.join(idxs[2:])});
-            ${output.ctype} kprop_coeff = ${polar_unit}(kprop * ${dt});
-            ${output.store_same}(${mul}(${input.load_same}, kprop_coeff));
-            """,
-            render_kwds=dict(
-                mul=functions.mul(state_arr.dtype, state_arr.dtype),
-                polar_unit=functions.polar_unit(real_dtype)))
+        # '/2' because we want to propagate only to dt/2
+        self._kprop = (-ksquared / 2).astype(real_dtype)
+        kprop_trf = get_kprop_trf(state_arr, self._kprop, kinetic_coeff)
+
+        ksquared = get_ksquared(shape, box)
+        # '/2' because we want to propagate only to dt/2
+        self._kprop = (-ksquared / 2).astype(real_dtype)
+        kprop_trf = get_kprop_exp_trf(state_arr, self._kprop, kinetic_coeff)
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))

@@ -111,7 +111,7 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
 
     stepper = stepper_cls(
         grid.shape, grid.box, drift,
-        kinetic_coeff=const.HBAR / (2 * states[0].m),
+        kinetic_coeff=1j * const.HBAR / (2 * states[0].m),
         ensembles=paths,
         diffusion=diffusion)
 
