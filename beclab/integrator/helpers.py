@@ -51,6 +51,6 @@ def get_kprop_exp_trf(state_arr, kprop_arr, kinetic_coeff):
         """,
         render_kwds=dict(
             kinetic_coeff=dtypes.c_constant(kinetic_coeff, kcoeff_dtype),
-            mul_k=functions.mul(kprop_arr.dtype, kinetic_coeff.dtype, out_dtype=state_arr.dtype),
+            mul_k=functions.mul(kprop_arr.dtype, kcoeff_dtype, out_dtype=state_arr.dtype),
             exp=functions.exp(state_arr.dtype),
             mul=functions.mul(state_arr.dtype, state_arr.dtype)))
