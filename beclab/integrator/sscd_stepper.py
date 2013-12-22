@@ -116,11 +116,6 @@ class SSCDStepper(Computation):
         ksquared = get_ksquared(shape, box)
         # '/2' because we want to propagate only to dt/2
         self._kprop = (-ksquared / 2).astype(real_dtype)
-        kprop_trf = get_kprop_trf(state_arr, self._kprop, kinetic_coeff)
-
-        ksquared = get_ksquared(shape, box)
-        # '/2' because we want to propagate only to dt/2
-        self._kprop = (-ksquared / 2).astype(real_dtype)
         kprop_trf = get_kprop_exp_trf(state_arr, self._kprop, kinetic_coeff)
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
