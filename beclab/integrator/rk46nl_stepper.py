@@ -66,8 +66,8 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
 
         %for comp in range(components):
         dpsi_${comp} =
-            ${mul_cr}(
-                kpsi_${comp}
+            kpsi_${comp}
+            + ${mul_cr}(
                 + ${drift.module}${comp}(${idx_args}, ${psi_args}, ${t} + ${dt} * ${ci}),
                 ${dt})
             %if diffusion is not None:
@@ -134,7 +134,7 @@ class RK46NLStepper(Computation):
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop.parameter.output.connect(
             kprop_trf, kprop_trf.input,
-            output_prime=kprop_trf.output, kprop=kprop_trf.kprop)
+            output_prime=kprop_trf.output, kprop=kprop_trf.kprop, dt=kprop_trf.dt)
 
         self._xpropagate = get_xpropagate(state_arr, drift, diffusion=diffusion, dW_arr=dW_arr)
 
@@ -174,7 +174,7 @@ class RK46NLStepper(Computation):
             else:
                 data_out = result
 
-            plan.computation_call(self._fft_with_kprop, kdata, kprop_device, data_in)
+            plan.computation_call(self._fft_with_kprop, kdata, kprop_device, dt, data_in)
             plan.computation_call(self._fft, kdata, kdata, inverse=True)
 
             plan.computation_call(
