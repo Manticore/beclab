@@ -1,9 +1,10 @@
 import numpy
 
-import reikna.cluda.dtypes as dtypes
+from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Transformation
 from reikna.cbrng import CBRNG
 from reikna.fft import FFT
+from reikna.pureparallel import PureParallel
 
 
 REPR_CLASSICAL = "classical"
@@ -103,7 +104,6 @@ def get_multiply(wfs):
         guiding_array=wfs.shape[1:],
         render_kwds=dict(
             components=wfs.components,
-            coeffs=coeffs,
             mul=functions.mul(wfs.dtype, real_dtype)))
 
 
