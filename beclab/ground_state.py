@@ -13,6 +13,10 @@ def get_TF_state(thr, grid, dtype, states, freqs, Ns):
     for i, state in enumerate(states):
         N = Ns[i]
 
+        if N == 0:
+            psi_TF[i] = 0
+            continue
+
         mu = const.muTF3D(freqs, N, state)
         a, _ = const.get_interaction_constants(None, state, state)
         g = const.get_scattering_constant(a, state.m)
