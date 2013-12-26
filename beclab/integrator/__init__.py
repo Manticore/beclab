@@ -1,4 +1,4 @@
-from beclab.integrator.integrator import FixedStepIntegrator
+from beclab.integrator.integrator import Integrator, StopIntegration
 from beclab.integrator.wiener import Wiener
 from beclab.integrator.modules import Drift, Diffusion
 

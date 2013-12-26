@@ -81,6 +81,8 @@ In this example we test that:
 
 from __future__ import print_function, division
 
+import itertools
+
 import numpy
 
 import matplotlib
@@ -93,7 +95,7 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    FixedStepIntegrator, Wiener, Drift, Diffusion,
+    StopIntegration, Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 
 
@@ -154,11 +156,12 @@ def get_diffusion(state_dtype, gamma):
         state_dtype, components=1, noise_sources=1)
 
 
-class PsiCollector:
+class PsiSampler:
 
-    def __init__(self, dx, wigner=False):
+    def __init__(self, dx, wigner=False, stop_time=None):
         self._wigner = wigner
         self._dx = dx
+        self._stop_time = stop_time
 
     def __call__(self, psi, t):
         psi = psi.get()
@@ -170,18 +173,25 @@ class PsiCollector:
         N_mean = N.mean(1)[0]
         N_err = N.std(1)[0] / numpy.sqrt(N.shape[1])
 
-        return dict(
+        sample = dict(
             psi=psi,
             density=density.mean(1)[0],
             N_mean=N_mean, N_err=N_err
             )
 
+        if self._stop_time is not None and t >= self._stop_time:
+            raise StopIntegration(sample)
+        else:
+            return sample
 
-def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
+
+def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     print()
     print(
-        "*** Running " + label + ", wigner=" + str(wigner) +
+        "*** Running " + stepper_cls.abbreviation +
+        ", " + integration +
+        ", wigner=" + str(wigner) +
         ", no_losses=" + str(no_losses) + " test")
     print()
 
@@ -230,21 +240,39 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
 
     if wigner:
         wiener = Wiener(stepper.parameter.dW, 1. / dx, seed=seed)
-    integrator = FixedStepIntegrator(
+    integrator = Integrator(
         thr, stepper,
-        wiener=wiener if wigner else None)
+        wiener=wiener if wigner else None,
+        verbose=True, profile=True)
 
     # Integrate
-    psi_collector = PsiCollector(dx, wigner=wigner)
-    result, errors = integrator(
-        psi_gpu, 0, interval, steps, samples=samples, collectors=[psi_collector])
+    psi_sampler = PsiSampler(
+        dx, wigner=wigner,
+        stop_time=interval if integration == 'adaptive-endless' else None)
 
+    if integration == 'fixed':
+        result, info = integrator.fixed_step(
+            psi_gpu, 0, interval, steps, samples=samples, samplers=[psi_sampler])
+    elif integration == 'adaptive':
+        result, info = integrator.adaptive_step(
+            psi_gpu, 0, interval / samples, t_end=interval,
+            convergence=dict(N_mean=1e-3), samplers=[psi_sampler])
+    elif integration == 'adaptive-endless':
+        result, info = integrator.adaptive_step(
+            psi_gpu, 0, interval / samples,
+            convergence=dict(N_mean=1e-3), samplers=[psi_sampler])
+
+    times = result['time']
     N_mean = result['N_mean']
     N_err = result['N_err']
     density = result['density']
     N_exact = N0 * numpy.exp(-gamma * result['time'] * 2)
 
-    suffix = ('_wigner' if wigner else '') + ('_no-losses' if no_losses else '') + '_' + label
+    suffix = (
+        ('_wigner' if wigner else '') +
+        ('_no-losses' if no_losses else '') +
+        '_' + stepper_cls.abbreviation +
+        '_' + integration)
 
     # Plot density
     fig = plt.figure()
@@ -258,10 +286,10 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     # Plot population
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.plot(result['time'], N_mean, 'b-')
+    s.plot(times, N_mean, 'b-')
     if wigner:
-        s.plot(result['time'], N_mean + N_err, 'b--')
-        s.plot(result['time'], N_mean - N_err, 'b--')
+        s.plot(times, N_mean + N_err, 'b--')
+        s.plot(times, N_mean - N_err, 'b--')
     s.plot(result['time'], N_exact, 'k--')
     s.set_ylim(-N0 * 0.1, N0 * 1.1)
     s.set_xlabel('$t$')
@@ -291,14 +319,20 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
-    tests = [
-        ("SS-CD", SSCDStepper),
-        ("CD", CDStepper),
-        ("RK4IP", RK4IPStepper),
-        ("RK46-NL", RK46NLStepper),
+    steppers = [
+        SSCDStepper,
+        CDStepper,
+        RK4IPStepper,
+        RK46NLStepper,
     ]
 
-    for label, cls in tests:
-        run_test(thr, label, cls, no_losses=True, wigner=False)
-        run_test(thr, label, cls, wigner=False)
-        run_test(thr, label, cls, wigner=True)
+    integrations = [
+        'fixed',
+        'adaptive',
+        'adaptive-endless',
+    ]
+
+    for stepper_cls, integration in itertools.product(steppers, integrations):
+        run_test(thr, stepper_cls, integration, no_losses=True, wigner=False)
+        run_test(thr, stepper_cls, integration, wigner=False)
+        run_test(thr, stepper_cls, integration, wigner=True)
