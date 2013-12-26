@@ -125,13 +125,10 @@ class Integrator:
         return sample_dict, stop_integration, t_samplers
 
     def _integrate(self, data_out, data_in, double_step, t_start, dt, steps, samples=None,
-            samplers=None, verbose=False):
+            samplers=None, verbose=False, filters=None):
 
         stepper = self.stepper
         noise_dt = dt / 2 if double_step else dt
-
-        if samplers is None:
-            samplers = []
 
         results = []
         step = 0
@@ -167,6 +164,12 @@ class Integrator:
             else:
                 stepper(data_out, _data_in, t, dt)
 
+            # Calling every second step for normal step so that filters are executed
+            # exactly at the same places, and the convergence can be measured.
+            if double_step or step % 2 == 0:
+                for filter_ in filters:
+                    filter_(data_out, t)
+
             t += dt
 
             if verbose and steps % val_step == 0:
@@ -190,10 +193,12 @@ class Integrator:
 
         return results, t_total - t_samplers, t_samplers
 
-    def fixed_step(self, data_dev, t_start, t_end, steps, samples=1, samplers=None):
+    def fixed_step(self, data_dev, t_start, t_end, steps, samples=1, samplers=None, filters=None):
 
         if samplers is None:
             samplers = []
+        if filters is None:
+            filters = []
 
         assert steps % samples == 0
         assert steps % 2 == 0
@@ -206,13 +211,13 @@ class Integrator:
         data_double_dev = self.thr.copy_array(data_dev)
         results_double, t_double, t_samplers_double = self._integrate(
             data_double_dev, data_double_dev, True, t_start, dt * 2, steps // 2,
-            samplers=samplers, samples=1, verbose=self.verbose)
+            samplers=samplers, samples=1, verbose=self.verbose, filters=filters)
 
         # actual integration
         sample_start, _, t_samplers_start = self._sample(data_dev, t_start, samplers)
         results, t_normal, t_samplers_normal = self._integrate(
             data_dev, data_dev, False, t_start, dt, steps,
-            samples=samples, samplers=samplers, verbose=self.verbose)
+            samples=samples, samplers=samplers, verbose=self.verbose, filters=filters)
         results = [sample_start] + results
 
         # FIXME: need to cache Norm computations and perform this on device
@@ -242,7 +247,7 @@ class Integrator:
     def adaptive_step(
             self, data_dev, t_start, t_sample,
             starting_steps=2,
-            t_end=None, samplers=None, convergence=None,
+            t_end=None, samplers=None, convergence=None, filters=None,
             display=None,
             steps_limit=10000):
 
@@ -250,6 +255,8 @@ class Integrator:
 
         if samplers is None:
             samplers = []
+        if filters is None:
+            filters = []
         if convergence is None:
             convergence = {}
 
@@ -290,9 +297,11 @@ class Integrator:
         while True:
             dt = t_sample / steps
             _, t_double, _ = self._integrate(
-                data_double_try, data_double_dev, True, t, dt * 2, steps // 2, verbose=False)
+                data_double_try, data_double_dev, True, t, dt * 2, steps // 2, verbose=False,
+                filters=filters)
             _, t_normal, _ = self._integrate(
-                data_try, data_dev, False, t, dt, steps, verbose=False)
+                data_try, data_dev, False, t, dt, steps, verbose=False,
+                filters=filters)
 
             t += t_sample
 
