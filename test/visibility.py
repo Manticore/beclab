@@ -1,5 +1,7 @@
 from __future__ import print_function, division
 
+import itertools
+
 import numpy
 
 import matplotlib
@@ -12,16 +14,16 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    FixedStepIntegrator, Wiener, Drift, Diffusion,
+    StopIntegration, Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
 from beclab.beam_splitter import BeamSplitter
 import beclab.constants as const
-from beclab.ground_state import get_TF_state, to_wigner
+from beclab.ground_state import get_TF_state
 
 
-class PsiCollector:
+class PsiSampler:
 
     def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
         self._thr = thr
@@ -31,7 +33,7 @@ class PsiCollector:
         self._psi_temp = psi_temp
 
     def __call__(self, psi, t):
-        self._thr.copy_array(psi, dest=self._psi_temp)
+        self._thr.copy_array(psi.data, dest=self._psi_temp)
         self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
         psi = self._psi_temp.get()
 
@@ -51,11 +53,13 @@ class PsiCollector:
             )
 
 
-def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
+def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     print()
     print(
-        "*** Running " + label + ", wigner=" + str(wigner) +
+        "*** Running " + stepper_cls.abbreviation +
+        ", " + integration +
+        ", wigner=" + str(wigner) +
         ", no_losses=" + str(no_losses) + " test")
     print()
 
@@ -86,21 +90,15 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
     grid = UniformGrid(lattice_size, box_3D(N, freqs, states[0]))
 
     # Initial TF state
-    psi_TF = get_TF_state(grid, states[0], freqs, N)
-    axial_n_max = ((numpy.abs(psi_TF) ** 2).sum((0, 1)) * grid.dxs[0] * grid.dxs[1]).max()
-
-    # Two-component state
-    psi0 = numpy.empty((2, paths) + grid.shape, state_dtype)
-    psi0[0] = psi_TF
-    psi0[1] = 0
+    psi = get_TF_state(thr, grid, state_dtype, states, freqs, [N, 0])
+    axial_n_max = (
+        (numpy.abs(psi.data.get()[0,0]) ** 2).sum((0, 1)) * grid.dxs[0] * grid.dxs[1]).max()
 
     # Initial noise
     if wigner:
-        psi0 = to_wigner(grid, rng, psi0)
+        psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
 
-    psi_gpu = thr.to_device(psi0.astype(state_dtype))
-
-    bs = BeamSplitter(thr, psi_gpu, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
+    bs = BeamSplitter(thr, psi.data, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
 
     # Prepare integrator components
     drift = get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=wigner)
@@ -122,18 +120,28 @@ def run_test(thr, label, stepper_cls, no_losses=False, wigner=False):
         wiener=wiener if wigner else None)
 
     # Integrate
-    psi_temp = thr.empty_like(psi_gpu)
-    psi_collector = PsiCollector(thr, grid, psi_temp, bs, wigner=wigner)
+    psi_temp = thr.empty_like(psi.data)
+    psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=wigner)
     bs(psi_gpu, 0, numpy.pi / 2)
-    result, errors = integrator(
-        psi_gpu, 0, interval, steps, samples=samples, collectors=[psi_collector])
+
+    if integration == 'fixed':
+        result, info = integrator.fixed_step(
+            psi.data, 0, interval, steps, samples=samples, samplers=[psi_sampler])
+    elif integration == 'adaptive':
+        result, info = integrator.adaptive_step(
+            psi.data, 0, interval / samples, t_end=interval,
+            convergence=dict(N_mean=1e-3), samplers=[psi_sampler])
 
     N_mean = result['N_mean']
     N_err = result['N_err']
     density = result['axial_density']
     N_exact = N * numpy.exp(-gamma * result['time'] * 2)
 
-    suffix = ('_wigner' if wigner else '') + ('_no-losses' if no_losses else '') + '_' + label
+    suffix = (
+        ('_wigner' if wigner else '') +
+        ('_no-losses' if no_losses else '') +
+        '_' + stepper_cls.abbreviation +
+        '_' + integration)
 
     # Plot density
     for comp in (0, 1):
@@ -178,14 +186,19 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
-    tests = [
-        #("SS-CD", SSCDStepper),
-        #("CD", CDStepper),
-        ("RK4IP", RK4IPStepper),
-        #("RK46-NL", RK46NLStepper),
+    steppers = [
+        SSCDStepper,
+        CDStepper,
+        RK4IPStepper,
+        RK46NLStepper,
     ]
 
-    for label, cls in tests:
-        run_test(thr, label, cls, no_losses=True, wigner=False)
-        run_test(thr, label, cls, wigner=False)
-        run_test(thr, label, cls, wigner=True)
+    integrations = [
+        'fixed',
+        'adaptive',
+    ]
+
+    for stepper_cls, integration in itertools.product(steppers, integrations):
+        run_test(thr, stepper_cls, integration, no_losses=True, wigner=False)
+        run_test(thr, stepper_cls, integration, wigner=False)
+        run_test(thr, stepper_cls, integration, wigner=True)
