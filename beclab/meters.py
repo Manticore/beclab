@@ -2,7 +2,7 @@ import numpy
 
 from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type, Transformation
-from reikna.transformations import scale_const
+from reikna.transformations import scale_const, norm_const
 from reikna.reduce import Reduce, predicate_sum
 from reikna.fft import FFT
 
@@ -10,19 +10,6 @@ import beclab.constants as const
 from beclab.wavefunction import REPR_CLASSICAL, REPR_WIGNER
 from beclab.integrator.helpers import get_ksquared
 
-
-# FIXME: should be moved to Reikna
-def trf_norm(arr_t):
-    real_dtype = dtypes.real_for(arr_t.dtype)
-    return Transformation(
-        [
-            Parameter('output', Annotation(Type(real_dtype, arr_t.shape), 'o')),
-            Parameter('input', Annotation(arr_t, 'i'))],
-        """
-        ${input.ctype} val = ${input.load_same};
-        ${output.store_same}(${norm}(val));
-        """,
-        render_kwds=dict(norm=functions.norm(arr_t.dtype)))
 
 # FIXME: should be moved to Reikna
 # (don't forget to add a general addition operation)
@@ -54,7 +41,7 @@ class _PopulationMeter(Computation):
             real_arr, predicate_sum(real_dtype),
             axes=list(range(2, len(wfs.shape))))
 
-        norm = trf_norm(wfs.data)
+        norm = norm_const(wfs.data, 2)
         scale = scale_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
         self._reduce.parameter.input.connect(scale, scale.output, norm=scale.input)
         self._reduce.parameter.norm.connect(norm, norm.output, wfs=norm.input)
