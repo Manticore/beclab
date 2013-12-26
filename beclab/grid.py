@@ -29,6 +29,7 @@ class UniformGrid:
         # number of cells and cell volume
         self.dV = product(self.dxs)
         self.size = product(self.shape)
+        self.modes = self.size
         self.V = product(self.box)
 
 
