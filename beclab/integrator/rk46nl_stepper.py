@@ -103,6 +103,8 @@ class RK46NLStepper(Computation):
     6-step 4th order RK optimized for minimum dissipation and minimum temporary space.
     """
 
+    abbreviation = "RK46NL"
+
     def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=0.5j, diffusion=None):
 
         real_dtype = dtypes.real_for(drift.dtype)

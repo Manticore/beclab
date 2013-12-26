@@ -246,6 +246,8 @@ class RK4IPStepper(Computation):
     namely Eqns. B.10 (p. 166).
     """
 
+    abbreviation = "RK4IP"
+
     def __init__(self, shape, box, drift, ensembles=1, kinetic_coeff=0.5j, diffusion=None):
 
         real_dtype = dtypes.real_for(drift.dtype)

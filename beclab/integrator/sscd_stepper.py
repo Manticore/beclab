@@ -89,6 +89,8 @@ class SSCDStepper(Computation):
     Split step, central difference stepper.
     """
 
+    abbreviation = "SS-CD"
+
     def __init__(self, shape, box, drift,
             ensembles=1, kinetic_coeff=0.5j, diffusion=None, iterations=3):
 
