@@ -251,6 +251,12 @@ class Integrator:
             display=None,
             steps_limit=10000):
 
+        if self.noise:
+            # TODO: in order to support it we must somehow implement noise splitting
+            # (so that the convergence improves steadily when we decrease the time step).
+            # See Wilkie & Cetinbas, 2004 (doi:10.1016/j.physleta.2005.01.064).
+            raise NotImplementedError("Adaptive step for stochastic equations is not supported")
+
         assert starting_steps % 2 == 0
 
         if samplers is None:
