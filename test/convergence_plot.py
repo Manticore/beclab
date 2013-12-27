@@ -24,9 +24,9 @@ for label in labels:
     for steps in sorted(results[label]):
         result = results[label][steps]
         step_nums.append(steps)
-        strong_errors.append(result['strong_error'])
-        N_errors.append(result['N_convergence'])
-        SZ2_errors.append(result['SZ2_convergence'])
+        strong_errors.append(result['errors']['psi'])
+        N_errors.append(result['errors']['N_mean'])
+        SZ2_errors.append(result['errors']['SZ2_mean'])
         N_diffs.append(result['N_diff'])
     s.plot(step_nums, strong_errors, label=label + ", strong errors",
         color=colors[label], linestyle='-')
@@ -58,11 +58,11 @@ for label in labels:
     SZ2_errors = []
     for steps in sorted(results[label]):
         result = results[label][steps]
-        times.append(result['time'])
+        times.append(result['t_integration'])
         step_nums.append(steps)
-        strong_errors.append(result['strong_error'])
-        N_errors.append(result['N_convergence'])
-        SZ2_errors.append(result['SZ2_convergence'])
+        strong_errors.append(result['errors']['psi'])
+        N_errors.append(result['errors']['N_mean'])
+        SZ2_errors.append(result['errors']['SZ2_mean'])
         N_diffs.append(result['N_diff'])
 
     s.plot(times, strong_errors, label=label + ", strong errors",
@@ -88,7 +88,7 @@ for label in labels:
     for steps in sorted(results[label]):
         result = results[label][steps]
         step_nums.append(steps)
-        times.append(result['time'])
+        times.append(result['t_integration'])
     s.plot(step_nums, times, label=label)
 s.legend(fontsize=5, loc='upper left')
 fig.savefig('convergence_times.pdf')

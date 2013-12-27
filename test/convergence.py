@@ -8,16 +8,16 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    FixedStepIntegrator, Wiener, Drift, Diffusion,
+    Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
 from beclab.beam_splitter import BeamSplitter
 import beclab.constants as const
-from beclab.ground_state import get_TF_state, to_wigner
+from beclab.ground_state import get_TF_state
 
 
-class PsiCollector:
+class PsiSampler:
 
     def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
         self._thr = thr
@@ -27,6 +27,7 @@ class PsiCollector:
         self._psi_temp = psi_temp
 
     def __call__(self, psi, t):
+        psi_orig = psi.get()
         self._thr.copy_array(psi, dest=self._psi_temp)
         self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
         psi = self._psi_temp.get()
@@ -43,15 +44,16 @@ class PsiCollector:
         SZ2_mean = SZ2s.mean()
 
         return dict(
+            psi=psi_orig,
             N_mean=N_mean, N_err=N_err,
             SZ2_mean=SZ2_mean,
             )
 
 
-def run_test(thr, label, stepper_cls, steps):
+def run_test(thr, stepper_cls, steps):
 
     print()
-    print("*** Running " + label + " test, " + str(steps) + " steps")
+    print("*** Running " + stepper_cls.abbreviation + " test, " + str(steps) + " steps")
     print()
 
     # Simulation parameters
@@ -75,25 +77,27 @@ def run_test(thr, label, stepper_cls, steps):
         const.get_interaction_constants(const.B_Rb87_1m1_2p1, s1, s2)[0], s1.m)
     scattering = numpy.array([[get_g(s1, s2) for s2 in states] for s1 in states])
     losses = [
-        (gamma, (1, 0)),
-        (gamma, (0, 1))]
+        (5.4e-42 / 6, (3, 0)),
+        (8.1e-20 / 4, (0, 2)),
+        (1.51e-20 / 2, (1, 1)),
+        ]
 
     grid = UniformGrid(lattice_size, box_3D(N, freqs, states[0]))
 
     # Initial TF state
-    psi_TF = get_TF_state(grid, states[0], freqs, N)
+    psi = get_TF_state(thr, grid, state_dtype, states, freqs, [N, 0])
 
-    # Two-component state
-    psi0 = numpy.empty((2, paths) + grid.shape, state_dtype)
-    psi0[0] = psi_TF
-    psi0[1] = 0
+    # Initial ground state
+    with open('ground_state_8-8-64_1-1-1.pickle', 'rb') as f:
+        data = pickle.load(f)
+
+    psi_gs = data['data']
+    psi.fill_with(psi_gs)
 
     # Initial noise
-    psi0 = to_wigner(grid, rng, psi0)
+    psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
 
-    psi_gpu = thr.to_device(psi0.astype(state_dtype))
-
-    bs = BeamSplitter(thr, psi_gpu, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
+    bs = BeamSplitter(thr, psi.data, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
 
     # Prepare integrator components
     drift = get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=True)
@@ -106,27 +110,22 @@ def run_test(thr, label, stepper_cls, steps):
         diffusion=diffusion)
 
     wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.randint(0, 2**32-1))
-    integrator = FixedStepIntegrator(
-        thr, stepper,
-        wiener=wiener,
-        profile=True)
+    integrator = Integrator(thr, stepper, wiener=wiener, profile=True)
 
     # Integrate
-    psi_temp = thr.empty_like(psi_gpu)
-    psi_collector = PsiCollector(thr, grid, psi_temp, bs, wigner=True)
-    bs(psi_gpu, 0, numpy.pi / 2)
-    result, info = integrator(
-        psi_gpu, 0, interval, steps, samples=samples, collectors=[psi_collector])
+    psi_temp = thr.empty_like(psi.data)
+    psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=True)
+    bs(psi.data, 0, numpy.pi / 2)
+    result, info = integrator.fixed_step(
+        psi.data, 0, interval, steps, samples=samples, samplers=[psi_sampler])
 
     N_mean = result['N_mean']
     N_exact = N * numpy.exp(-gamma * result['time'] * 2)
 
     return dict(
-        strong_error=info.error_strong,
-        N_convergence=info.errors['N_mean'],
-        SZ2_convergence=info.errors['SZ2_mean'],
+        errors=info.errors,
         N_diff=abs(N_mean.sum(1)[-1] - N_exact[-1]) / N_exact[-1],
-        time=info.t_integration,
+        t_integration=info.timings.integration,
         )
 
 
@@ -136,11 +135,11 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
-    tests = [
-        ("SS-CD", SSCDStepper),
-        ("CD", CDStepper),
-        ("RK4IP", RK4IPStepper),
-        ("RK46-NL", RK46NLStepper),
+    steppers = [
+        SSCDStepper,
+        CDStepper,
+        RK4IPStepper,
+        RK46NLStepper,
     ]
 
     import pickle
@@ -154,13 +153,14 @@ if __name__ == '__main__':
     step_nums = [1, 2, 3, 5, 7]
     step_nums = sum(([1000 * num * 10 ** pwr for num in step_nums] for pwr in range(3)), [])
 
-    for label, cls in tests:
+    for stepper_cls in steppers:
         for steps in step_nums:
-            result = run_test(thr, label, cls, steps)
+            result = run_test(thr, stepper_cls, steps)
             print(result)
 
             with open(fname, 'rb') as f:
                 results = pickle.load(f)
+            label = stepper_cls.abbreviation
             if label not in results:
                 results[label] = {}
             results[label][steps] = result
