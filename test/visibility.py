@@ -33,7 +33,7 @@ class PsiSampler:
         self._psi_temp = psi_temp
 
     def __call__(self, psi, t):
-        self._thr.copy_array(psi.data, dest=self._psi_temp)
+        self._thr.copy_array(psi, dest=self._psi_temp)
         self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
         psi = self._psi_temp.get()
 
@@ -68,7 +68,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     paths = 16 if wigner else 1 # simulation paths
     interval = 0.12 # time interval
     samples = 200 # how many samples to take during simulation
-    steps = samples * 50 # number of time steps (should be multiple of samples)
+    steps = samples * 100 # number of time steps (should be multiple of samples)
     gamma = 0.0 if no_losses else 0.2
     f_detuning = 37
     f_rabi = 350
@@ -115,14 +115,14 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     if wigner:
         wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.randint(0, 2**32-1))
-    integrator = FixedStepIntegrator(
+    integrator = Integrator(
         thr, stepper,
         wiener=wiener if wigner else None)
 
     # Integrate
     psi_temp = thr.empty_like(psi.data)
     psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=wigner)
-    bs(psi_gpu, 0, numpy.pi / 2)
+    bs(psi.data, 0, numpy.pi / 2)
 
     if integration == 'fixed':
         result, info = integrator.fixed_step(
@@ -153,6 +153,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
         s.set_xlabel('$t$')
         s.set_ylabel('$x$')
         fig.savefig('visibility_density_' + str(comp) + suffix + '.pdf')
+        plt.close(fig)
 
     fig = plt.figure()
     s = fig.add_subplot(111)
@@ -163,6 +164,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     s.set_xlabel('$t$')
     s.set_ylabel('$x$')
     fig.savefig('visibility_density_Pz' + suffix + '.pdf')
+    plt.close(fig)
 
     # Plot population
     fig = plt.figure()
@@ -178,6 +180,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     s.set_xlabel('$t$')
     s.set_ylabel('$N$')
     fig.savefig('visibility_N' + suffix + '.pdf')
+    plt.close(fig)
 
 
 if __name__ == '__main__':
@@ -201,4 +204,5 @@ if __name__ == '__main__':
     for stepper_cls, integration in itertools.product(steppers, integrations):
         run_test(thr, stepper_cls, integration, no_losses=True, wigner=False)
         run_test(thr, stepper_cls, integration, wigner=False)
-        run_test(thr, stepper_cls, integration, wigner=True)
+        if integration == 'fixed':
+            run_test(thr, stepper_cls, integration, wigner=True)
