@@ -27,7 +27,7 @@ def get_TF_state(thr, grid, dtype, states, freqs, Ns):
         psi_TF[i] = numpy.sqrt((mu - V).clip(0) / g)
 
         # renormalize to account for coarse grids
-        N0 = (numpy.abs(psi_TF) ** 2).sum() * grid.dV
+        N0 = (numpy.abs(psi_TF[i]) ** 2).sum() * grid.dV
         psi_TF[i] *= numpy.sqrt(N / N0)
 
     wfs.fill_with(psi_TF)
