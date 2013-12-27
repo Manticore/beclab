@@ -4,37 +4,13 @@ from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Transformation
 from reikna.cbrng import CBRNG
 from reikna.fft import FFT
-from reikna.pureparallel import PureParallel
+from reikna.algorithms import PureParallel
+from reikna.transformations import ignore, broadcast_const
 
 
 REPR_CLASSICAL = "classical"
 REPR_WIGNER = "Wigner"
 REPR_POSITIVE_P = "positive-P"
-
-
-# FIXME: should be moved to Reikna
-# Stub for RNG counters, so that we do not have to keep the whole counter array.
-# We will only the counters once anyway.
-def trf_zero_stub(arr_t):
-    return Transformation(
-        [
-            Parameter('output', Annotation(arr_t, 'o'))],
-        """
-        ${output.ctype} val;
-        %for n in range(output.dtype.fields['v'][0].shape[0]):
-        val.v[${n}] = 0;
-        %endfor
-        ${output.store_same}(val);
-        """)
-
-# FIXME: should be moved to Reikna
-# Stub for the resulting counters --- we will just ignore them.
-def trf_ignore_stub(arr_t):
-    return Transformation(
-        [
-            Parameter('input', Annotation(arr_t, 'i'))],
-        """
-        """)
 
 
 def trf_combine(psi_w_arr, psi_c_arr):
@@ -61,10 +37,12 @@ class WignerCoherent(Computation):
         self._rng = CBRNG.normal_bm(
             data_out, len(data_out.shape),
             seed=seed, sampler_kwds=dict(std=scale))
-        zeros = trf_zero_stub(self._rng.parameter.counters)
+        zeros = broadcast_const(
+            self._rng.parameter.counters,
+            numpy.zeros(tuple(), self._rng.parameter.counters.dtype))
         self._rng.parameter.counters.connect(zeros, zeros.output)
-        ignore = trf_ignore_stub(self._rng.parameter.counters)
-        self._rng.parameter.counters.connect(ignore, ignore.input)
+        trf_ignore = ignore(self._rng.parameter.counters)
+        self._rng.parameter.counters.connect(trf_ignore, trf_ignore.input)
 
         self._fft = FFT(data_out, axes=range(2, len(data_out.shape)))
         combine = trf_combine(data_out, data_in)

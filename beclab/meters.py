@@ -2,25 +2,13 @@ import numpy
 
 from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type, Transformation
-from reikna.transformations import scale_const, norm_const
+from reikna.transformations import mul_const, norm_const, add_const
 from reikna.reduce import Reduce, predicate_sum
 from reikna.fft import FFT
 
 import beclab.constants as const
 from beclab.wavefunction import REPR_CLASSICAL, REPR_WIGNER
 from beclab.integrator.helpers import get_ksquared
-
-
-# FIXME: should be moved to Reikna
-# (don't forget to add a general addition operation)
-def add_const(arr_t, val):
-    val_dtype = dtypes.detect_type(val)
-    return Transformation(
-        [Parameter('output', Annotation(arr_t, 'o')),
-        Parameter('input', Annotation(arr_t, 'i'))],
-        "${output.store_same}(${input.load_same} + (${val}));",
-        render_kwds=dict(
-            val=dtypes.c_constant(val, dtype=val_dtype)))
 
 
 class _PopulationMeter(Computation):
@@ -42,7 +30,7 @@ class _PopulationMeter(Computation):
             axes=list(range(2, len(wfs.shape))))
 
         norm = norm_const(wfs.data, 2)
-        scale = scale_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
+        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
         self._reduce.parameter.input.connect(scale, scale.output, norm=scale.input)
         self._reduce.parameter.norm.connect(norm, norm.output, wfs=norm.input)
 
@@ -187,7 +175,7 @@ class _EnergyMeter(Computation):
             real_arr, predicate_sum(real_dtype),
             axes=list(range(1, len(wfs.shape) - 1)))
 
-        scale = scale_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
+        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
         self._reduce.parameter.input.connect(scale, scale.output, energy=scale.input)
 
         energy = get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering)

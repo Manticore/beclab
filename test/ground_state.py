@@ -10,7 +10,7 @@ import reikna.cluda.dtypes as dtypes
 import reikna.cluda.functions as functions
 import reikna.cluda as cluda
 from reikna.cluda import Module
-from reikna.pureparallel import PureParallel
+from reikna.algorithms import PureParallel
 from reikna.core import Computation, Parameter, Annotation, Transformation
 
 from beclab.integrator import (

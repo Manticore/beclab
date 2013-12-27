@@ -2,7 +2,7 @@ import numpy
 
 from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type
-from reikna.pureparallel import PureParallel
+from reikna.algorithms import PureParallel
 
 
 def get_splitter(state_arr, comp1, comp2):

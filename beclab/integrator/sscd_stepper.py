@@ -4,7 +4,7 @@ from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type
 
 from reikna.fft import FFT
-from reikna.pureparallel import PureParallel
+from reikna.algorithms import PureParallel
 
 from beclab.integrator.helpers import get_ksquared, get_kprop_exp_trf
 
