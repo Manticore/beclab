@@ -13,7 +13,7 @@ if __name__ == '__main__':
             ],
         provides=['beclab'],
         install_requires=[
-            ('reikna >= 0.5.2'),
+            ('reikna >= 0.6.0'),
             ('progressbar2 >= 2.6.0'),
             ],
         extras_require=dict(
