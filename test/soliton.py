@@ -256,11 +256,11 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples, t_end=interval,
-            convergence=dict(N_mean=1e-3), samplers=[psi_sampler])
+            convergence=dict(N_mean=1e-6), samplers=[psi_sampler])
     elif integration == 'adaptive-endless':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples,
-            convergence=dict(N_mean=1e-3), samplers=[psi_sampler])
+            convergence=dict(N_mean=1e-6), samplers=[psi_sampler])
 
     times = result['time']
     N_mean = result['N_mean']
@@ -282,6 +282,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     s.set_xlabel('$t$')
     s.set_ylabel('$x$')
     fig.savefig('soliton_density' + suffix + '.pdf')
+    plt.close(fig)
 
     # Plot population
     fig = plt.figure()
@@ -295,6 +296,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     s.set_xlabel('$t$')
     s.set_ylabel('$N$')
     fig.savefig('soliton_N' + suffix + '.pdf')
+    plt.close(fig)
 
     # Compare with the analytical solution
     if not wigner and no_losses:
@@ -335,4 +337,5 @@ if __name__ == '__main__':
     for stepper_cls, integration in itertools.product(steppers, integrations):
         run_test(thr, stepper_cls, integration, no_losses=True, wigner=False)
         run_test(thr, stepper_cls, integration, wigner=False)
-        run_test(thr, stepper_cls, integration, wigner=True)
+        if integration == 'fixed':
+            run_test(thr, stepper_cls, integration, wigner=True)
