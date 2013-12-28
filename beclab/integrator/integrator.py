@@ -83,9 +83,10 @@ class Timings:
 
 class IntegrationInfo:
 
-    def __init__(self, timings, errors):
+    def __init__(self, timings, errors, steps):
         self.errors = errors
         self.timings = timings
+        self.steps = steps
 
 
 class Integrator:
@@ -240,7 +241,15 @@ class Integrator:
         timings = Timings(
             normal=t_normal, double=t_double,
             samplers=t_samplers_normal + t_samplers_double + t_samplers_start)
-        info = IntegrationInfo(timings, errors)
+
+        t_sample = (t_end - t_start) / samples
+        ts_start = [t_start + i * t_sample for i in range(samples)]
+        ts_end = [t_start + (i + 1 * t_sample) for i in range(samples)]
+        steps_used = [
+            (t_start, t_end, steps // samples)
+            for t_start, t_end in zip(ts_start, ts_end)]
+
+        info = IntegrationInfo(timings, errors, steps_used)
 
         return _transpose_results(results), info
 
@@ -286,6 +295,7 @@ class Integrator:
         sample_start, _, t_samplers = self._sample(data_dev, t, samplers)
         results = [sample_start]
         timings = Timings(samplers=t_samplers)
+        steps_used = []
         if self.verbose:
             label.set(sample_start)
 
@@ -337,6 +347,8 @@ class Integrator:
                     else:
                         pbar.update(min(maxval, t - t_start))
 
+                steps_used.append((t - t_sample, t, steps))
+
                 if stop_integration or (t_end is not None and t >= t_end):
                     break
 
@@ -367,6 +379,6 @@ class Integrator:
             if self.verbose:
                 print("Error in " + key + ":", errors[key] * (t - t_start) / t_sample)
 
-        info = IntegrationInfo(timings, errors)
+        info = IntegrationInfo(timings, errors, steps_used)
 
         return _transpose_results(results), info
