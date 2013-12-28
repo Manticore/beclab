@@ -3,7 +3,7 @@ import numpy
 from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type, Transformation
 from reikna.transformations import mul_const, norm_const, add_const
-from reikna.reduce import Reduce, predicate_sum
+from reikna.algorithms import Reduce, predicate_sum
 from reikna.fft import FFT
 
 import beclab.constants as const
