@@ -51,29 +51,42 @@ def get_multiply(wfs):
             mul=functions.mul(wfs.dtype, real_dtype)))
 
 
-class PsiSampler:
+class EnergySampler:
 
-    def __init__(self, grid, energy_meter, limit=1e-6):
+    def __init__(self, energy_meter):
+        self._energy = energy_meter
+
+    def __call__(self, psi, t):
+        return self._energy(psi)
+
+
+class AxialViewSampler:
+
+    def __init__(self, grid):
         self._grid = grid
-        self._limit = limit
+
+    def __call__(self, psi, t):
+        psi = psi.get()
+        density = numpy.abs(psi) ** 2
+        return density.sum((2, 3)).mean(1) * self._grid.dxs[0] * self._grid.dxs[1]
+
+
+class PropagationStop:
+
+    def __init__(self, energy_meter, limit=1e-6):
         self._energy = energy_meter
         self._previous_E = None
+        self._limit = limit
 
     def __call__(self, psi, t):
         E = self._energy(psi)
 
-        density = numpy.abs(psi) ** 2
-        axial_density = density.sum((2, 3)).mean(1) * self._grid.dxs[0] * self._grid.dxs[1]
-
-        result = dict(E=E, axial_density=axial_density)
-
         if self._previous_E is not None:
             if abs(E - self._previous_E) / E < self._limit:
-                raise StopIntegration(result)
-        else:
-            self._previous_E = E
+                raise StopIntegration(E)
 
-        return result
+        self._previous_E = E
+        return E
 
 
 class PsiFilter:
@@ -85,15 +98,12 @@ class PsiFilter:
 
     def __call__(self, psi, t):
         Ns, _ = self._population(psi)
-        print(psi.get())
-        print("Filter:", Ns, self._target_Ns)
-        input()
-        self._multiply(psi, psi, *(self._target_Ns / Ns))
+        self._multiply(psi, psi, *(numpy.sqrt(self._target_Ns / Ns)))
 
 
 if __name__ == '__main__':
 
-    dtype = numpy.complex64
+    dtype = numpy.complex128
     shape = (8, 8, 64)
     freqs = (97.6, 97.6, 11.96)
     state = const.Rb87_1_minus1
@@ -117,7 +127,7 @@ if __name__ == '__main__':
 
     drift = get_drift(dtype, grid, [state], freqs, scattering, imaginary_time=True)
 
-    stepper = SSCDStepper(
+    stepper = RK4IPStepper(
         grid.shape, grid.box, drift,
         kinetic_coeff=const.HBAR / (2 * state.m))
     integrator = Integrator(thr, stepper, verbose=True)
@@ -125,22 +135,33 @@ if __name__ == '__main__':
     # Integrate
     energy_meter = EnergyMeter(thr, psi, -const.HBAR ** 2 / state.m, [state], freqs, scattering)
     population_meter = PopulationMeter(thr, psi)
-    psi_sampler = PsiSampler(grid, energy_meter, limit=1e-6)
+    e_sampler = EnergySampler(energy_meter)
+    e_stopper = PropagationStop(energy_meter, limit=1e-9)
+    ax_sampler = AxialViewSampler(grid)
     psi_filter = PsiFilter(thr, psi, [N], population_meter)
     result, info = integrator.adaptive_step(
-        psi.data, 0, 0.01,
+        psi.data, 0, 0.001,
         display=['time', 'E'],
-        samplers=[psi_sampler],
-        starting_steps=100,
+        samplers=dict(E_conv=e_sampler, E=e_stopper, axial_density=ax_sampler),
         filters=[psi_filter],
-        convergence=dict(E=1e-3))
+        convergence=dict(E_conv=1e-9))
 
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.plot(grid.xs[1], result['axial_density'][-1])
+    s.plot(grid.xs[2], result['axial_density'][-1,0])
     fig.savefig('ground_state_final.pdf')
 
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.imshow(result['axial_density'].T)
+    s.imshow(result['axial_density'][:,0,:].T)
     fig.savefig('ground_state_evolution.pdf')
+
+    # Plot used steps
+    ts_start, ts_end, steps_used = map(numpy.array, zip(*info.steps))
+
+    fig = plt.figure()
+    s = fig.add_subplot(111)
+    s.bar(ts_start, steps_used, width=(ts_end - ts_start))
+    s.set_xlabel('$t$')
+    s.set_ylabel('steps')
+    fig.savefig('ground_state_steps.pdf')

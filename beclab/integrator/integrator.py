@@ -115,13 +115,13 @@ class Integrator:
         t1 = time.time()
         sample_dict = dict(time=t)
         stop_integration = False
-        for sampler in samplers:
+        for key, sampler in samplers.items():
             try:
                 sample = sampler(data, t)
             except StopIntegration as e:
                 sample = e.args[0]
                 stop_integration = True
-            sample_dict.update(sample)
+            sample_dict[key] = sample
         t_samplers = time.time() - t1
         return sample_dict, stop_integration, t_samplers
 
@@ -165,13 +165,13 @@ class Integrator:
             else:
                 stepper(data_out, _data_in, t, dt)
 
+            t += dt
+
             # Calling every second step for normal step so that filters are executed
             # exactly at the same places, and the convergence can be measured.
-            if double_step or step % 2 == 0:
+            if double_step or (step + 1) % 2 == 0:
                 for filter_ in filters:
                     filter_(data_out, t)
-
-            t += dt
 
             if verbose and steps % val_step == 0:
                 pbar.update(step)
@@ -256,7 +256,10 @@ class Integrator:
     def adaptive_step(
             self, data_dev, t_start, t_sample,
             starting_steps=2,
-            t_end=None, samplers=None, convergence=None, filters=None,
+            t_end=None,
+            samplers=None,
+            convergence=None,
+            filters=None,
             display=None,
             steps_limit=10000):
 
@@ -273,7 +276,10 @@ class Integrator:
         if filters is None:
             filters = []
         if convergence is None:
-            convergence = {}
+            raise ValueError("At least one convergence criterion must be specified")
+
+        convergence_samplers = {key:samplers[key] for key in convergence}
+        main_samplers = {key:samplers[key] for key in samplers if key not in convergence}
 
         if self.verbose:
             if display is not None:
@@ -320,8 +326,10 @@ class Integrator:
 
             t += t_sample
 
-            sample_normal, stop_integration, t_samplers_normal = self._sample(data_try, t, samplers)
-            sample_double, _, t_samplers_double = self._sample(data_double_try, t, samplers)
+            sample_normal, _, t_samplers_normal = self._sample(
+                data_try, t, convergence_samplers)
+            sample_double, _, t_samplers_double = self._sample(
+                data_double_try, t, convergence_samplers)
 
             timings += Timings(
                 normal=t_normal, double=t_double,
@@ -339,9 +347,13 @@ class Integrator:
             if converged:
                 self.thr.copy_array(data_try, dest=data_dev)
 
-                results.append(sample_normal)
+                sample_final, stop_integration, t_samplers_normal = self._sample(
+                    data_try, t, samplers)
+
+                results.append(sample_final)
+
                 if self.verbose:
-                    label.set(sample_normal)
+                    label.set(sample_final)
                     if t_end is None:
                         pbar.update(t - t_start)
                     else:
