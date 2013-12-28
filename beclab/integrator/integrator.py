@@ -277,7 +277,6 @@ class Integrator:
                 "Integrating from " + str(t_start) + " to " +
                 (str(t_end) if t_end is not None else "infinity"))
 
-        data_double_dev = self.thr.copy_array(data_dev)
         data_try = self.thr.empty_like(data_dev)
         data_double_try = self.thr.empty_like(data_dev)
 
@@ -303,7 +302,7 @@ class Integrator:
         while True:
             dt = t_sample / steps
             _, t_double, _ = self._integrate(
-                data_double_try, data_double_dev, True, t, dt * 2, steps // 2, verbose=False,
+                data_double_try, data_dev, True, t, dt * 2, steps // 2, verbose=False,
                 filters=filters)
             _, t_normal, _ = self._integrate(
                 data_try, data_dev, False, t, dt, steps, verbose=False,
@@ -323,13 +322,12 @@ class Integrator:
                 res = sample_normal[key]
                 res_double = sample_double[key]
                 error = numpy.linalg.norm(res_double - res) / numpy.linalg.norm(res)
-                if error > convergence[key] * (t - t_start):
+                if error > convergence[key]:
                     converged = False
                     break
 
             if converged:
                 self.thr.copy_array(data_try, dest=data_dev)
-                self.thr.copy_array(data_double_try, dest=data_double_dev)
 
                 results.append(sample_normal)
                 if self.verbose:
@@ -367,7 +365,7 @@ class Integrator:
                 error = 0
             errors[key] = error
             if self.verbose:
-                print("Error in " + key + ":", errors[key])
+                print("Error in " + key + ":", errors[key] * (t - t_start) / t_sample)
 
         info = IntegrationInfo(timings, errors)
 
