@@ -130,7 +130,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi.data, 0, interval / samples, t_end=interval,
-            convergence=dict(N_mean=1e-3), samplers=[psi_sampler])
+            convergence=dict(N_mean=1e-4), samplers=[psi_sampler])
 
     N_mean = result['N_mean']
     N_err = result['N_err']
@@ -180,6 +180,17 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     s.set_xlabel('$t$')
     s.set_ylabel('$N$')
     fig.savefig('visibility_N' + suffix + '.pdf')
+    plt.close(fig)
+
+    # Plot used steps
+    ts_start, ts_end, steps_used = map(numpy.array, zip(*info.steps))
+
+    fig = plt.figure()
+    s = fig.add_subplot(111)
+    s.bar(ts_start, steps_used, width=(ts_end - ts_start))
+    s.set_xlabel('$t$')
+    s.set_ylabel('steps')
+    fig.savefig('visibility_steps' + suffix + '.pdf')
     plt.close(fig)
 
 
