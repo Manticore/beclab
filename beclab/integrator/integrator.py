@@ -57,6 +57,13 @@ class IntegrationError(Exception):
     pass
 
 
+class Sampler:
+
+    def __init__(self, no_average=False, no_stderr=False):
+        self.no_average = no_average
+        self.no_stderr = no_stderr
+
+
 def _transpose_results(results):
     new_results = {key:[] for key in results[0].keys()}
     for res in results:

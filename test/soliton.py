@@ -95,7 +95,7 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    StopIntegration, Integrator, Wiener, Drift, Diffusion,
+    Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 
 
@@ -156,9 +156,19 @@ def get_diffusion(state_dtype, gamma):
         state_dtype, components=1, noise_sources=1)
 
 
-class PsiSampler:
+class PsiSampler(Sampler):
+
+    def __init__(self):
+        Sampler.__init__(self, no_average=True)
+
+    def __call__(self, psi, t):
+        return psi.get().transpose(1, 0, *range(2, len(psi.shape)))
+
+
+class NSampler(Sampler):
 
     def __init__(self, dx, wigner=False, stop_time=None):
+        Sampler.__init__(self)
         self._wigner = wigner
         self._dx = dx
         self._stop_time = stop_time
@@ -170,19 +180,28 @@ class PsiSampler:
         density = numpy.abs(psi) ** 2 - (0.5 / self._dx if self._wigner else 0)
 
         N = density.sum(2) * self._dx
-        N_mean = N.mean(1)[0]
-        N_err = N.std(1)[0] / numpy.sqrt(N.shape[1])
 
-        sample = dict(
-            psi=psi,
-            density=density.mean(1)[0],
-            N_mean=N_mean, N_err=N_err
-            )
+        sample = N.T
 
         if self._stop_time is not None and t >= self._stop_time:
             raise StopIntegration(sample)
         else:
             return sample
+
+
+class DensitySampler(Sampler):
+
+    def __init__(self, dx, wigner=False):
+        Sampler.__init__(self, no_stderr=True)
+        self._wigner = wigner
+        self._dx = dx
+
+    def __call__(self, psi, t):
+        psi = psi.get()
+
+        # (components, ensembles, x_points)
+        density = numpy.abs(psi) ** 2 - (0.5 / self._dx if self._wigner else 0)
+        return density[0]
 
 
 def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
@@ -246,21 +265,25 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
         verbose=True, profile=True)
 
     # Integrate
-    psi_sampler = PsiSampler(
+    psi_sampler = PsiSampler()
+    n_sampler = NSampler(
         dx, wigner=wigner,
         stop_time=interval if integration == 'adaptive-endless' else None)
+    density_sampler = DensitySampler(dx, wigner=wigner)
+
+    samplers = dict(psi=psi_sampler, N=n_sampler, density=density_sampler)
 
     if integration == 'fixed':
         result, info = integrator.fixed_step(
-            psi_gpu, 0, interval, steps, samples=samples, samplers=[psi_sampler])
+            psi_gpu, 0, interval, steps, samples=samples, samplers=samplers)
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples, t_end=interval,
-            convergence=dict(N_mean=1e-6), samplers=[psi_sampler])
+            samplers=samplers, convergence=dict(N=1e-6))
     elif integration == 'adaptive-endless':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples,
-            convergence=dict(N_mean=1e-6), samplers=[psi_sampler])
+            samplers=samplers, convergence=dict(N=1e-6))
 
     times = result['time']
     N_mean = result['N_mean']
