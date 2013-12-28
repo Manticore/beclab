@@ -50,7 +50,7 @@ class PsiSampler:
             )
 
 
-def run_test(thr, stepper_cls, steps):
+def run_test(thr, stepper_cls, steps, wigner=False):
 
     print()
     print("*** Running " + stepper_cls.abbreviation + " test, " + str(steps) + " steps")
@@ -95,26 +95,30 @@ def run_test(thr, stepper_cls, steps):
     psi.fill_with(psi_gs)
 
     # Initial noise
-    psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
+    if wigner:
+        psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
 
     bs = BeamSplitter(thr, psi.data, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
 
     # Prepare integrator components
-    drift = get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=True)
-    diffusion = get_diffusion(state_dtype, grid, 2, losses)
+    drift = get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=wigner)
+    diffusion = get_diffusion(state_dtype, grid, 2, losses) if wigner else None
 
     stepper = stepper_cls(
         grid.shape, grid.box, drift,
         kinetic_coeff=1j * const.HBAR / (2 * states[0].m),
-        ensembles=paths,
+        ensembles=paths if wigner else 1,
         diffusion=diffusion)
 
-    wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.randint(0, 2**32-1))
+    if wigner:
+        wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.randint(0, 2**32-1))
+    else:
+        wiener = None
     integrator = Integrator(thr, stepper, wiener=wiener, profile=True)
 
     # Integrate
     psi_temp = thr.empty_like(psi.data)
-    psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=True)
+    psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=wigner)
     bs(psi.data, 0, numpy.pi / 2)
     result, info = integrator.fixed_step(
         psi.data, 0, interval, steps, samples=samples, samplers=[psi_sampler])
@@ -144,25 +148,30 @@ if __name__ == '__main__':
 
     import pickle
     import os.path
-    fname = 'convergence.pickle'
-
-    if not os.path.exists(fname):
-        with open(fname, 'wb') as f:
-            pickle.dump({}, f, protocol=2)
 
     step_nums = [1, 2, 3, 5, 7]
     step_nums = sum(([1000 * num * 10 ** pwr for num in step_nums] for pwr in range(3)), [])
 
-    for stepper_cls in steppers:
-        for steps in step_nums:
-            result = run_test(thr, stepper_cls, steps)
-            print(result)
+    for wigner in (False, True):
+        if wigner:
+            fname = 'convergence_wigner.pickle'
+        else:
+            fname = 'convergence_gpe.pickle'
 
-            with open(fname, 'rb') as f:
-                results = pickle.load(f)
-            label = stepper_cls.abbreviation
-            if label not in results:
-                results[label] = {}
-            results[label][steps] = result
+        if not os.path.exists(fname):
             with open(fname, 'wb') as f:
-                pickle.dump(results, f, protocol=2)
+                pickle.dump({}, f, protocol=2)
+
+        for stepper_cls in steppers:
+            for steps in step_nums:
+                result = run_test(thr, stepper_cls, steps, wigner=wigner)
+                print(result)
+
+                with open(fname, 'rb') as f:
+                    results = pickle.load(f)
+                label = stepper_cls.abbreviation
+                if label not in results:
+                    results[label] = {}
+                results[label][steps] = result
+                with open(fname, 'wb') as f:
+                    pickle.dump(results, f, protocol=2)
