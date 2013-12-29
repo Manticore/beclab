@@ -8,7 +8,7 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    Integrator, Wiener, Drift, Diffusion,
+    Sampler, Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
@@ -17,9 +17,19 @@ import beclab.constants as const
 from beclab.ground_state import get_TF_state
 
 
-class PsiSampler:
+class PsiSampler(Sampler):
+
+    def __init__(self):
+        Sampler.__init__(self, no_average=True)
+
+    def __call__(self, psi, t):
+        return psi.get().transpose(1, 0, *range(2, len(psi.shape)))
+
+
+class NSampler(Sampler):
 
     def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
+        Sampler.__init__(self)
         self._thr = thr
         self._wigner = wigner
         self._grid = grid
@@ -27,27 +37,32 @@ class PsiSampler:
         self._psi_temp = psi_temp
 
     def __call__(self, psi, t):
-        psi_orig = psi.get()
         self._thr.copy_array(psi, dest=self._psi_temp)
         self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
         psi = self._psi_temp.get()
 
         # (components, ensembles, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
+        return (density.sum((2, 3, 4)) * self._grid.dV).T
 
-        N = density.sum((2, 3, 4)) * self._grid.dV
-        N_mean = N.mean(1)
-        N_err = N.std(1) / numpy.sqrt(N.shape[1])
 
-        SZ2s = ((0.25 * (numpy.abs(psi[0]) ** 2 - numpy.abs(psi[1]) ** 2) ** 2).sum((1,2,3))
+class SZ2Sampler(Sampler):
+
+    def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
+        Sampler.__init__(self)
+        self._thr = thr
+        self._wigner = wigner
+        self._grid = grid
+        self._beam_splitter = beam_splitter
+        self._psi_temp = psi_temp
+
+    def __call__(self, psi, t):
+        self._thr.copy_array(psi, dest=self._psi_temp)
+        self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
+        psi = self._psi_temp.get()
+
+        return ((0.25 * (numpy.abs(psi[0]) ** 2 - numpy.abs(psi[1]) ** 2) ** 2).sum((1,2,3))
                 * self._grid.dV)
-        SZ2_mean = SZ2s.mean()
-
-        return dict(
-            psi=psi_orig,
-            N_mean=N_mean, N_err=N_err,
-            SZ2_mean=SZ2_mean,
-            )
 
 
 def run_test(thr, stepper_cls, steps, wigner=False):
@@ -118,12 +133,17 @@ def run_test(thr, stepper_cls, steps, wigner=False):
 
     # Integrate
     psi_temp = thr.empty_like(psi.data)
-    psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=wigner)
+    psi_sampler = PsiSampler()
+    n_sampler = NSampler(thr, grid, psi_temp, bs, wigner=wigner)
+    sz2_sampler = SZ2Sampler(thr, grid, psi_temp, bs, wigner=wigner)
+
     bs(psi.data, 0, numpy.pi / 2)
     result, info = integrator.fixed_step(
-        psi.data, 0, interval, steps, samples=samples, samplers=[psi_sampler])
+        psi.data, 0, interval, steps, samples=samples,
+        convergence=['psi', 'N', 'SZ2'],
+        samplers=dict(psi=psi_sampler, N=n_sampler, SZ2=sz2_sampler))
 
-    N_mean = result['N_mean']
+    N_mean = result['N']
     N_exact = N * numpy.exp(-gamma * result['time'] * 2)
 
     return dict(
