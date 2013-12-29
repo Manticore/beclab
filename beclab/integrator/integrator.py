@@ -122,13 +122,23 @@ class Integrator:
         t1 = time.time()
         sample_dict = dict(time=t)
         stop_integration = False
+
         for key, sampler in samplers.items():
+
             try:
                 sample = sampler(data, t)
             except StopIntegration as e:
                 sample = e.args[0]
                 stop_integration = True
-            sample_dict[key] = sample
+
+            if sampler.no_average:
+                sample_dict[key] = sample
+            elif sampler.no_stderr:
+                sample_dict[key] = sample.mean(0)
+            else:
+                sample_dict[key] = sample.mean(0)
+                sample_dict[key + '_stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
+
         t_samplers = time.time() - t1
         return sample_dict, stop_integration, t_samplers
 
@@ -201,12 +211,17 @@ class Integrator:
 
         return results, t_total - t_samplers, t_samplers
 
-    def fixed_step(self, data_dev, t_start, t_end, steps, samples=1, samplers=None, filters=None):
+    def fixed_step(self, data_dev, t_start, t_end, steps, samples=1,
+            convergence=None, samplers=None, filters=None):
 
         if samplers is None:
             samplers = []
         if filters is None:
             filters = []
+        if convergence is None:
+            convergence = []
+
+        convergence_samplers = {key:samplers[key] for key in convergence}
 
         assert steps % samples == 0
         assert steps % 2 == 0
@@ -216,10 +231,15 @@ class Integrator:
             print("Integrating from " + str(t_start) + " to " + str(t_end))
 
         # double step (to estimate the convergence)
-        data_double_dev = self.thr.copy_array(data_dev)
-        results_double, t_double, t_samplers_double = self._integrate(
-            data_double_dev, data_double_dev, True, t_start, dt * 2, steps // 2,
-            samplers=samplers, samples=1, verbose=self.verbose, filters=filters)
+        if len(convergence_samplers) > 0:
+            data_double_dev = self.thr.copy_array(data_dev)
+            results_double, t_double, t_samplers_double = self._integrate(
+                data_double_dev, data_double_dev, True, t_start, dt * 2, steps // 2,
+                samplers=convergence_samplers, samples=1, verbose=self.verbose, filters=filters)
+        else:
+            results_double = {}
+            t_double = 0
+            t_samplers_double = 0
 
         # actual integration
         sample_start, _, t_samplers_start = self._sample(data_dev, t_start, samplers)
@@ -231,9 +251,7 @@ class Integrator:
         # FIXME: need to cache Norm computations and perform this on device
         # calculate result errors
         errors = {}
-        for key in results[-1]:
-            if key == 'time':
-                continue
+        for key in convergence:
             res_double = results_double[-1][key]
             res = results[-1][key]
             error_norm = numpy.linalg.norm(res)
@@ -286,7 +304,6 @@ class Integrator:
             raise ValueError("At least one convergence criterion must be specified")
 
         convergence_samplers = {key:samplers[key] for key in convergence}
-        main_samplers = {key:samplers[key] for key in samplers if key not in convergence}
 
         if self.verbose:
             if display is not None:
@@ -384,9 +401,7 @@ class Integrator:
 
         # calculate result errors
         errors = {}
-        for key in sorted(sample_normal):
-            if key == 'time':
-                continue
+        for key in convergence:
             res_double = sample_double[key]
             res = sample_normal[key]
             error_norm = numpy.linalg.norm(res)

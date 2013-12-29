@@ -14,7 +14,7 @@ import reikna.cluda as cluda
 from reikna.cluda import Module
 
 from beclab.integrator import (
-    StopIntegration, Integrator, Wiener, Drift, Diffusion,
+    Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
@@ -23,9 +23,10 @@ import beclab.constants as const
 from beclab.ground_state import get_TF_state
 
 
-class PsiSampler:
+class NSampler(Sampler):
 
     def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
+        Sampler.__init__(self)
         self._thr = thr
         self._wigner = wigner
         self._grid = grid
@@ -39,18 +40,28 @@ class PsiSampler:
 
         # (components, ensembles, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
+        return (density.sum((2, 3, 4)) * self._grid.dV).T
 
-        N = density.sum((2, 3, 4)) * self._grid.dV
-        N_mean = N.mean(1)
-        N_err = N.std(1) / numpy.sqrt(N.shape[1])
 
-        axial_density = density.sum((2, 3)).mean(1) * self._grid.dxs[0] * self._grid.dxs[1]
+class DensitySampler(Sampler):
 
-        return dict(
-            psi=psi,
-            axial_density=axial_density,
-            N_mean=N_mean, N_err=N_err
-            )
+    def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
+        Sampler.__init__(self, no_stderr=True)
+        self._thr = thr
+        self._wigner = wigner
+        self._grid = grid
+        self._beam_splitter = beam_splitter
+        self._psi_temp = psi_temp
+
+    def __call__(self, psi, t):
+        self._thr.copy_array(psi, dest=self._psi_temp)
+        self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
+        psi = self._psi_temp.get()
+
+        # (components, ensembles, x_points)
+        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
+        axial_density = density.sum((2, 3)) * self._grid.dxs[0] * self._grid.dxs[1]
+        return axial_density.transpose(1, 0, 2)
 
 
 def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
@@ -121,19 +132,23 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     # Integrate
     psi_temp = thr.empty_like(psi.data)
-    psi_sampler = PsiSampler(thr, grid, psi_temp, bs, wigner=wigner)
+    n_sampler = NSampler(thr, grid, psi_temp, bs, wigner=wigner)
+    density_sampler = DensitySampler(thr, grid, psi_temp, bs, wigner=wigner)
     bs(psi.data, 0, numpy.pi / 2)
+
+    samplers = dict(N=n_sampler, axial_density=density_sampler)
 
     if integration == 'fixed':
         result, info = integrator.fixed_step(
-            psi.data, 0, interval, steps, samples=samples, samplers=[psi_sampler])
+            psi.data, 0, interval, steps, samples=samples,
+            samplers=samplers, convergence=['N'])
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi.data, 0, interval / samples, t_end=interval,
-            convergence=dict(N_mean=1e-4), samplers=[psi_sampler])
+            convergence=dict(N=1e-4), samplers=samplers)
 
-    N_mean = result['N_mean']
-    N_err = result['N_err']
+    N_mean = result['N']
+    N_err = result['N_stderr']
     density = result['axial_density']
     N_exact = N * numpy.exp(-gamma * result['time'] * 2)
 

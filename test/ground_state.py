@@ -14,7 +14,7 @@ from reikna.algorithms import PureParallel
 from reikna.core import Computation, Parameter, Annotation, Transformation
 
 from beclab.integrator import (
-    StopIntegration, Integrator, Wiener, Drift, Diffusion,
+    Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
     SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
@@ -51,29 +51,32 @@ def get_multiply(wfs):
             mul=functions.mul(wfs.dtype, real_dtype)))
 
 
-class EnergySampler:
+class EnergySampler(Sampler):
 
     def __init__(self, energy_meter):
+        Sampler.__init__(self, no_stderr=True)
         self._energy = energy_meter
 
     def __call__(self, psi, t):
         return self._energy(psi)
 
 
-class AxialViewSampler:
+class AxialViewSampler(Sampler):
 
     def __init__(self, grid):
+        Sampler.__init__(self, no_stderr=True)
         self._grid = grid
 
     def __call__(self, psi, t):
         psi = psi.get()
         density = numpy.abs(psi) ** 2
-        return density.sum((2, 3)).mean(1) * self._grid.dxs[0] * self._grid.dxs[1]
+        return (density.sum((2, 3)) * self._grid.dxs[0] * self._grid.dxs[1]).transpose(1, 0, 2)
 
 
-class PropagationStop:
+class PropagationStop(Sampler):
 
     def __init__(self, energy_meter, limit=1e-6):
+        Sampler.__init__(self, no_stderr=True)
         self._energy = energy_meter
         self._previous_E = None
         self._limit = limit
@@ -82,7 +85,7 @@ class PropagationStop:
         E = self._energy(psi)
 
         if self._previous_E is not None:
-            if abs(E - self._previous_E) / E < self._limit:
+            if abs(E[0] - self._previous_E[0]) / E[0] < self._limit:
                 raise StopIntegration(E)
 
         self._previous_E = E
@@ -97,7 +100,7 @@ class PsiFilter:
         self._multiply = get_multiply(wfs).compile(thr)
 
     def __call__(self, psi, t):
-        Ns, _ = self._population(psi)
+        Ns = self._population(psi).mean(1)
         self._multiply(psi, psi, *(numpy.sqrt(self._target_Ns / Ns)))
 
 
@@ -120,10 +123,6 @@ if __name__ == '__main__':
 
     # Initial TF state
     psi = get_TF_state(thr, grid, dtype, [state], freqs, [N])
-
-    #psi_w = psi.to_wigner_coherent(256)
-    #pm = PopulationMeter(thr, psi_w)
-    #print(pm(psi_w))
 
     drift = get_drift(dtype, grid, [state], freqs, scattering, imaginary_time=True)
 

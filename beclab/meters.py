@@ -52,8 +52,7 @@ class PopulationMeter:
 
     def __call__(self, wfs):
         self._meter(self._out, wfs.data)
-        populations = self._out.get()
-        return populations.mean(1), populations.std(1) / numpy.sqrt(populations.shape[1])
+        return self._out.get()
 
 
 def get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering):
@@ -200,4 +199,4 @@ class EnergyMeter:
 
     def __call__(self, wfs):
         self._meter(self._out, wfs.data)
-        return self._out.get().mean()
+        return self._out.get()

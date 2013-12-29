@@ -181,7 +181,7 @@ class NSampler(Sampler):
 
         N = density.sum(2) * self._dx
 
-        sample = N.T
+        sample = N[0]
 
         if self._stop_time is not None and t >= self._stop_time:
             raise StopIntegration(sample)
@@ -275,7 +275,8 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     if integration == 'fixed':
         result, info = integrator.fixed_step(
-            psi_gpu, 0, interval, steps, samples=samples, samplers=samplers)
+            psi_gpu, 0, interval, steps, samples=samples,
+            samplers=samplers, convergence=['N', 'psi'])
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples, t_end=interval,
@@ -286,8 +287,8 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
             samplers=samplers, convergence=dict(N=1e-6))
 
     times = result['time']
-    N_mean = result['N_mean']
-    N_err = result['N_err']
+    N_mean = result['N']
+    N_err = result['N_stderr']
     density = result['density']
     N_exact = N0 * numpy.exp(-gamma * result['time'] * 2)
 
