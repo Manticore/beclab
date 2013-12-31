@@ -15,7 +15,7 @@ from reikna.cluda import Module
 
 from beclab.integrator import (
     Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
-    SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
+    CDIPStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
 from beclab.beam_splitter import BeamSplitter
@@ -216,7 +216,7 @@ if __name__ == '__main__':
     thr = api.Thread.create()
 
     steppers = [
-        SSCDStepper,
+        CDIPStepper,
         CDStepper,
         RK4IPStepper,
         RK46NLStepper,

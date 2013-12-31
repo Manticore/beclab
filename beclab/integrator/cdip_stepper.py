@@ -84,12 +84,12 @@ def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
             mul_cn=functions.mul(state_arr.dtype, noise_dtype)))
 
 
-class SSCDStepper(Computation):
+class CDIPStepper(Computation):
     """
-    Split step, central difference stepper.
+    Central difference, interaction picture (split-step) stepper.
     """
 
-    abbreviation = "SS-CD"
+    abbreviation = "CDIP"
 
     def __init__(self, shape, box, drift,
             ensembles=1, kinetic_coeff=0.5j, diffusion=None, iterations=3):

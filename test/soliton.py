@@ -96,7 +96,7 @@ from reikna.cluda import Module
 
 from beclab.integrator import (
     Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
-    SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
+    CDIPStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 
 
 def get_drift(state_dtype, U, gamma, dx, wigner=False):
@@ -346,7 +346,7 @@ if __name__ == '__main__':
     thr = api.Thread.create()
 
     steppers = [
-        SSCDStepper,
+        CDIPStepper,
         CDStepper,
         RK4IPStepper,
         RK46NLStepper,

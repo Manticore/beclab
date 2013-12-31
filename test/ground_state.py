@@ -15,7 +15,7 @@ from reikna.core import Computation, Parameter, Annotation, Transformation
 
 from beclab.integrator import (
     Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
-    SSCDStepper, CDStepper, RK4IPStepper, RK46NLStepper)
+    CDIPStepper, CDStepper, RK4IPStepper, RK46NLStepper)
 from beclab.modules import get_drift, get_diffusion
 from beclab.grid import UniformGrid, box_3D
 from beclab.beam_splitter import BeamSplitter
