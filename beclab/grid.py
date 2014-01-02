@@ -4,8 +4,6 @@ import numpy
 
 from reikna.helpers import product
 
-from beclab.constants import muTF3D
-
 
 class UniformGrid:
 
@@ -31,9 +29,3 @@ class UniformGrid:
         self.size = product(self.shape)
         self.modes = self.size
         self.V = product(self.box)
-
-
-def box_3D(N, freqs, state, border=1.2):
-    mu = muTF3D(freqs, N, state)
-    diameter = lambda f: 2.0 * border * numpy.sqrt(2.0 * mu / (state.m * (2 * numpy.pi * f) ** 2))
-    return tuple(diameter(f) for f in freqs)

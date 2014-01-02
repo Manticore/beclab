@@ -55,7 +55,7 @@ class PopulationMeter:
         return self._out.get()
 
 
-def get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering):
+def get_energy_trf(wfs, system):
     real_dtype = dtypes.real_for(wfs.dtype)
     return Transformation(
         [
@@ -79,10 +79,10 @@ def get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering):
             ${r_const(grid.xs[dim][0])} + ${r_const(grid.dxs[dim])} * ${idxs[dim + 1]};
         %endfor
         const ${r_ctype} V =
-            ${r_const(states[comp].m)}
+            ${r_const(system.components[comp].m)}
             * (
                 %for dim in range(grid.dimensions):
-                + ${r_const((2 * numpy.pi * freqs[dim]) ** 2)}
+                + ${r_const((2 * numpy.pi * system.potential.trap_frequencies[dim]) ** 2)}
                     * x_${dim} * x_${dim}
                 %endfor
             ) / 2;
@@ -96,6 +96,7 @@ def get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering):
             # in case of single precision.
             # So for the time being we are splitting them in two.
 
+            kinetic_coeff = (-1j * HBAR * system.kinetic_coeff).real
             sign_kcoeff = 1 if kinetic_coeff > 0 else -1
             sqrt_kcoeff = numpy.sqrt(abs(kinetic_coeff))
         %>
@@ -107,7 +108,7 @@ def get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering):
             + V * n_${comp}
                 %for other_comp in range(components):
                 <%
-                    sqrt_g = numpy.sqrt(scattering[comp, other_comp])
+                    sqrt_g = numpy.sqrt(system.scattering[comp, other_comp])
                 %>
                 + (${r_const(sqrt_g)} * n_${comp})
                     * (${r_const(sqrt_g)} * n_${other_comp}) / 2
@@ -119,14 +120,11 @@ def get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering):
         """,
         render_kwds=dict(
             components=wfs.components,
-            kinetic_coeff=kinetic_coeff,
+            system=system,
             HBAR=const.HBAR,
-            states=states,
             grid=wfs.grid,
             s_dtype=wfs.dtype,
             r_dtype=real_dtype,
-            freqs=freqs,
-            scattering=scattering,
             mul_ss=functions.mul(wfs.dtype, wfs.dtype),
             norm=functions.norm(wfs.dtype),
             ))
@@ -149,7 +147,7 @@ def get_ksquared_trf(state_arr, ksquared_arr):
 
 class _EnergyMeter(Computation):
 
-    def __init__(self, wfs, kinetic_coeff, states, freqs, scattering):
+    def __init__(self, wfs, system):
 
         # FIXME: generalize for Wigner?
         assert wfs.representation == REPR_CLASSICAL
@@ -177,7 +175,7 @@ class _EnergyMeter(Computation):
         scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
         self._reduce.parameter.input.connect(scale, scale.output, energy=scale.input)
 
-        energy = get_energy_trf(wfs, kinetic_coeff, states, freqs, scattering)
+        energy = get_energy_trf(wfs, system)
         self._reduce.parameter.energy.connect(energy, energy.energy,
             data=energy.data, kdata=energy.kdata)
 
@@ -193,8 +191,8 @@ class _EnergyMeter(Computation):
 
 class EnergyMeter:
 
-    def __init__(self, thr, wfs, kinetic_coeff, states, freqs, scattering):
-        self._meter = _EnergyMeter(wfs, kinetic_coeff, states, freqs, scattering).compile(thr)
+    def __init__(self, thr, wfs, system):
+        self._meter = _EnergyMeter(wfs, system).compile(thr)
         self._out = thr.empty_like(self._meter.parameter.energy)
 
     def __call__(self, wfs):
