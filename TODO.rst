@@ -14,3 +14,4 @@ Core
 - How do we specify stateful samplers in XMDS-like interface? Pass them the list of results of their previous invocations?
 - Need to display the full errors in the end of adaptive step integration.
   Sum errors over sample steps (don't forget they're relative)?
+- Kinetic coefficient parameter for steppers should support per-component coefficients
