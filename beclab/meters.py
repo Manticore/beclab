@@ -96,7 +96,7 @@ def get_energy_trf(wfs, system):
             # in case of single precision.
             # So for the time being we are splitting them in two.
 
-            kinetic_coeff = (-1j * HBAR * system.kinetic_coeff).real
+            kinetic_coeff = (1j * HBAR * system.kinetic_coeff).real
             sign_kcoeff = 1 if kinetic_coeff > 0 else -1
             sqrt_kcoeff = numpy.sqrt(abs(kinetic_coeff))
         %>

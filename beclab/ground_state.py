@@ -8,7 +8,7 @@ from reikna.core import Parameter, Annotation, Transformation
 
 import beclab.constants as const
 from beclab.wavefunction import WavefunctionSet
-from beclab.integrator import Sampler, RK46NLStepper, Integrator
+from beclab.integrator import Sampler, RK46NLStepper, Integrator, StopIntegration
 from beclab.modules import get_drift
 from beclab.meters import PopulationMeter, EnergyMeter
 
@@ -87,7 +87,7 @@ class PropagationStop(Sampler):
         E = self._energy(psi)
 
         if self._previous_E is not None:
-            if abs(E[0] - self._previous_E[0]) / E[0] < self._limit:
+            if abs(E[0] - self._previous_E[0]) / abs(E[0]) < self._limit:
                 raise StopIntegration(E)
 
         self._previous_E = E
@@ -120,7 +120,8 @@ def it_ground_state(thr, grid, dtype, system, Ns, E_diff=1e-9, E_conv=1e-9, samp
 
     stepper = stepper_cls(
         grid.shape, grid.box, drift,
-        kinetic_coeff=(-1j * system.kinetic_coeff).real)
+        kinetic_coeff=(-1j * system.kinetic_coeff).real
+        )
     integrator = Integrator(thr, stepper, verbose=True)
 
     # Integrate
@@ -141,9 +142,9 @@ def it_ground_state(thr, grid, dtype, system, Ns, E_diff=1e-9, E_conv=1e-9, samp
         filters=[psi_filter],
         convergence=dict(E_conv=E_conv))
 
-    del results['E_conv']
+    del result['E_conv']
 
     if return_info:
-        return psi, results, info
+        return psi, result, info
     else:
         return psi
