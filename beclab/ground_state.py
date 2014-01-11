@@ -29,7 +29,7 @@ def tf_ground_state(thr, grid, dtype, system, Ns):
 
         mu = const.mu_tf_3d(system.potential.trap_frequencies, N, comp.m, system.scattering[i, i])
 
-        V = system.get_potential(grid, i)
+        V = system.potential.get_array(i)
         psi_TF[i] = numpy.sqrt((mu - V).clip(0) / system.scattering[i, i])
 
         # renormalize to account for coarse grids
