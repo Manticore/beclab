@@ -39,6 +39,23 @@ class PopulationSampler(Sampler):
         return density.sum((2, 3, 4)) * self._grid.dV
 
 
+class InteractionSampler(Sampler):
+
+    def __init__(self, wfs):
+        Sampler.__init__(self)
+        self._wigner = (wfs.representation == REPR_WIGNER)
+        self._grid = wfs.grid
+
+    def __call__(self, psi, t):
+        psi = psi.get()
+
+        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
+
+        I = numpy.abs((psi[:,0].conj() * psi[:,1]).sum((1, 2, 3))) * self._grid.dV
+
+        return I
+
+
 class VisibilitySampler(Sampler):
 
     def __init__(self, wfs):
