@@ -160,7 +160,7 @@ class PsiSampler(Sampler):
         Sampler.__init__(self, no_average=True)
 
     def __call__(self, psi, t):
-        return psi.get().transpose(1, 0, *range(2, len(psi.shape)))
+        return psi.get()
 
 
 class NSampler(Sampler):
@@ -179,7 +179,7 @@ class NSampler(Sampler):
 
         N = density.sum(2) * self._dx
 
-        sample = N[0]
+        sample = N[:,0]
 
         if self._stop_time is not None and t >= self._stop_time:
             raise StopIntegration(sample)
@@ -199,7 +199,7 @@ class DensitySampler(Sampler):
 
         # (components, trajectories, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._dx if self._wigner else 0)
-        return density[0]
+        return density[:,0]
 
 
 def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
@@ -239,8 +239,8 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     if wigner:
         numpy.random.seed(seed)
         random_normals = (
-            numpy.random.normal(size=(1, paths, lattice_size)) +
-            1j * numpy.random.normal(size=(1, paths, lattice_size))) / 2
+            numpy.random.normal(size=(paths, 1, lattice_size)) +
+            1j * numpy.random.normal(size=(paths, 1, lattice_size))) / 2
         fft_scale = numpy.sqrt(dx / lattice_size)
         psi0 = numpy.fft.ifft(random_normals) / fft_scale + psi0
     else:

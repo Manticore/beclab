@@ -26,11 +26,11 @@ def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
             Parameter('dt', Annotation(real_dtype))],
         """
         <%
-            all_indices = ', '.join(idxs)
+            coords = ", ".join(idxs[1:])
+            trajectory = idxs[0]
             components = drift.components
             if diffusion is not None:
                 noise_sources = diffusion.noise_sources
-            idx_args = ", ".join(idxs[1:])
             psi_args = ", ".join("psi_" + str(c) + "_tmp" for c in range(components))
 
             if diffusion is None:
@@ -38,14 +38,14 @@ def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
         %>
 
         %for comp in range(components):
-        ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
+        ${output.ctype} psi_${comp} = ${input.load_idx}(${trajectory}, ${comp}, ${coords});
         ${output.ctype} psi_${comp}_tmp = psi_${comp};
         ${output.ctype} dpsi_${comp};
         %endfor
 
         %if diffusion is not None:
         %for ncomp in range(noise_sources):
-        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${trajectory}, ${ncomp}, ${coords});
         %endfor
         %endif
 
@@ -55,11 +55,11 @@ def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
         dpsi_${comp} =
             ${mul_cr}(
                 ${mul_cr}(${drift.module}${comp}(
-                    ${idx_args}, ${psi_args}, ${t} + ${dt} / 2), ${dt})
+                    ${coords}, ${psi_args}, ${t} + ${dt} / 2), ${dt})
                 %if diffusion is not None:
                 %for ncomp in range(noise_sources):
                 + ${mul_cn}(${diffusion.module}${comp}_${ncomp}(
-                    ${idx_args}, ${psi_args}, ${t} + ${dt} / 2), dW_${ncomp})
+                    ${coords}, ${psi_args}, ${t} + ${dt} / 2), dW_${ncomp})
                 %endfor
                 %endif
                 , 0.5);
@@ -72,10 +72,10 @@ def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
         %endfor
 
         %for comp in range(components):
-        ${output.store_idx}(${comp}, ${all_indices}, psi_${comp}_tmp + dpsi_${comp});
+        ${output.store_idx}(${trajectory}, ${comp}, ${coords}, psi_${comp}_tmp + dpsi_${comp});
         %endfor
         """,
-        guiding_array=state_arr.shape[1:],
+        guiding_array=(state_arr.shape[0],) + state_arr.shape[2:],
         render_kwds=dict(
             drift=drift,
             diffusion=diffusion,
@@ -101,12 +101,12 @@ class CDIPStepper(Computation):
             assert diffusion.components == drift.components
             self._noise = True
             dW_dtype = real_dtype if diffusion.real_noise else drift.dtype
-            dW_arr = Type(dW_dtype, (diffusion.noise_sources, trajectories) + shape)
+            dW_arr = Type(dW_dtype, (trajectories, diffusion.noise_sources) + shape)
         else:
             dW_arr = None
             self._noise = False
 
-        state_arr = Type(drift.dtype, (drift.components, trajectories) + shape)
+        state_arr = Type(drift.dtype, (trajectories, drift.components) + shape)
 
         Computation.__init__(self,
             [Parameter('output', Annotation(state_arr, 'o')),

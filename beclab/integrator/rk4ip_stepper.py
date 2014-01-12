@@ -83,27 +83,29 @@ def get_nonlinear1(state_arr, nonlinear_wrapper, components, diffusion=None, dW_
             if diffusion is None:
                 dW = None
 
-            all_indices = ', '.join(idxs)
+            coords = ", ".join(idxs[1:])
+            trajectory = idxs[0]
+
             args = lambda prefix, num: list(map(lambda i: prefix + str(i), range(num)))
             dW_args = args('dW_', diffusion.noise_sources) if diffusion is not None else []
             n_args = ", ".join(idxs[1:] + args('psi_', components) + dW_args)
         %>
         %for comp in range(components):
-        ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
+        ${output.ctype} psi_${comp} = ${input.load_idx}(${trajectory}, ${comp}, ${coords});
         %endfor
 
         %if diffusion is not None:
         %for ncomp in range(diffusion.noise_sources):
-        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${trajectory}, ${ncomp}, ${coords});
         %endfor
         %endif
 
         %for comp in range(components):
         ${output.store_idx}(
-            ${comp}, ${all_indices}, ${nonlinear}${comp}(${n_args}, ${t}, ${dt}));
+            ${trajectory}, ${comp}, ${coords}, ${nonlinear}${comp}(${n_args}, ${t}, ${dt}));
         %endfor
         """,
-        guiding_array=state_arr.shape[1:],
+        guiding_array=(state_arr.shape[0],) + state_arr.shape[2:],
         render_kwds=dict(
             components=components,
             nonlinear=nonlinear_wrapper,
@@ -132,26 +134,27 @@ def get_nonlinear2(state_arr, nonlinear_wrapper, components, diffusion=None, dW_
             if diffusion is None:
                 dW = None
 
-            all_indices = ', '.join(idxs)
+            coords = ", ".join(idxs[1:])
+            trajectory = idxs[0]
+
             args = lambda prefix, num: ", ".join(map(lambda i: prefix + str(i), range(num)))
             dW_args = (args('dW_', diffusion.noise_sources) + ",") if diffusion is not None else ""
-            idx_args = ', '.join(idxs[1:])
         %>
 
         %for comp in range(components):
-        ${psi_k.ctype} psi_I_${comp} = ${psi_I.load_idx}(${comp}, ${all_indices});
-        ${psi_k.ctype} k1_${comp} = ${k1.load_idx}(${comp}, ${all_indices});
+        ${psi_k.ctype} psi_I_${comp} = ${psi_I.load_idx}(${trajectory}, ${comp}, ${coords});
+        ${psi_k.ctype} k1_${comp} = ${k1.load_idx}(${trajectory}, ${comp}, ${coords});
         %endfor
 
         %if diffusion is not None:
         %for ncomp in range(diffusion.noise_sources):
-        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${trajectory}, ${ncomp}, ${coords});
         %endfor
         %endif
 
         %for comp in range(components):
         ${psi_k.ctype} k2_${comp} = ${nonlinear}${comp}(
-            ${idx_args},
+            ${coords},
             %for c in range(components):
             psi_I_${c} + ${div}(k1_${c}, 2),
             %endfor
@@ -161,7 +164,7 @@ def get_nonlinear2(state_arr, nonlinear_wrapper, components, diffusion=None, dW_
 
         %for comp in range(components):
         ${psi_k.ctype} k3_${comp} = ${nonlinear}${comp}(
-            ${idx_args},
+            ${coords},
             %for c in range(components):
             psi_I_${c} + ${div}(k2_${c}, 2),
             %endfor
@@ -170,16 +173,16 @@ def get_nonlinear2(state_arr, nonlinear_wrapper, components, diffusion=None, dW_
         %endfor
 
         %for comp in range(components):
-        ${psi_4.store_idx}(${comp}, ${all_indices}, psi_I_${comp} + k3_${comp});
+        ${psi_4.store_idx}(${trajectory}, ${comp}, ${coords}, psi_I_${comp} + k3_${comp});
         %endfor
 
         %for comp in range(components):
         ${psi_k.store_idx}(
-            ${comp}, ${all_indices},
+            ${trajectory}, ${comp}, ${coords},
             psi_I_${comp} + ${div}(k1_${comp}, 6) + ${div}(k2_${comp}, 3) + ${div}(k3_${comp}, 3));
         %endfor
         """,
-        guiding_array=state_arr.shape[1:],
+        guiding_array=(state_arr.shape[0],) + state_arr.shape[2:],
         render_kwds=dict(
             components=components,
             nonlinear=nonlinear_wrapper,
@@ -206,20 +209,22 @@ def get_nonlinear3(state_arr, nonlinear_wrapper, components, diffusion=None, dW_
             if diffusion is None:
                 dW = None
 
-            all_indices = ', '.join(idxs)
+            coords = ", ".join(idxs[1:])
+            trajectory = idxs[0]
+
             args = lambda prefix, num: list(map(lambda i: prefix + str(i), range(num)))
             dW_args = args('dW_', diffusion.noise_sources) if diffusion is not None else []
             k4_args = ", ".join(idxs[1:] + args('psi4_', components) + dW_args)
         %>
 
         %for comp in range(components):
-        ${output.ctype} psi4_${comp} = ${kprop_psi_4.load_idx}(${comp}, ${all_indices});
-        ${output.ctype} psik_${comp} = ${kprop_psi_k.load_idx}(${comp}, ${all_indices});
+        ${output.ctype} psi4_${comp} = ${kprop_psi_4.load_idx}(${trajectory}, ${comp}, ${coords});
+        ${output.ctype} psik_${comp} = ${kprop_psi_k.load_idx}(${trajectory}, ${comp}, ${coords});
         %endfor
 
         %if diffusion is not None:
         %for ncomp in range(diffusion.noise_sources):
-        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${trajectory}, ${ncomp}, ${coords});
         %endfor
         %endif
 
@@ -228,10 +233,12 @@ def get_nonlinear3(state_arr, nonlinear_wrapper, components, diffusion=None, dW_
         %endfor
 
         %for comp in range(components):
-        ${output.store_idx}(${comp}, ${all_indices}, psik_${comp} + ${div}(k4_${comp}, 6));
+        ${output.store_idx}(
+            ${trajectory}, ${comp}, ${coords},
+            psik_${comp} + ${div}(k4_${comp}, 6));
         %endfor
         """,
-        guiding_array=state_arr.shape[1:],
+        guiding_array=(state_arr.shape[0],) + state_arr.shape[2:],
         render_kwds=dict(
             components=components,
             nonlinear=nonlinear_wrapper,
@@ -257,12 +264,12 @@ class RK4IPStepper(Computation):
             assert diffusion.components == drift.components
             self._noise = True
             dW_dtype = real_dtype if diffusion.real_noise else drift.dtype
-            dW_arr = Type(dW_dtype, (diffusion.noise_sources, trajectories) + shape)
+            dW_arr = Type(dW_dtype, (trajectories, diffusion.noise_sources) + shape)
         else:
             dW_arr = None
             self._noise = False
 
-        state_arr = Type(drift.dtype, (drift.components, trajectories) + shape)
+        state_arr = Type(drift.dtype, (trajectories, drift.components) + shape)
 
         Computation.__init__(self,
             [Parameter('output', Annotation(state_arr, 'o')),

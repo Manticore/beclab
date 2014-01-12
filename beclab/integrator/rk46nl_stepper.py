@@ -32,11 +32,11 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
             Parameter('dt', Annotation(real_dtype))],
         """
         <%
-            all_indices = ', '.join(idxs)
+            coords = ", ".join(idxs[1:])
+            trajectory = idxs[0]
             components = drift.components
             if diffusion is not None:
                 noise_sources = diffusion.noise_sources
-            idx_args = ", ".join(idxs[1:])
             psi_args = ", ".join("psi_" + str(c) for c in range(components))
 
             if diffusion is None:
@@ -51,16 +51,16 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
         }
         else
         {
-            omega_${comp} = ${omega.load_idx}(${comp}, ${all_indices});
+            omega_${comp} = ${omega.load_idx}(${trajectory}, ${comp}, ${coords});
         }
-        ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
-        ${output.ctype} kpsi_${comp} = ${kinput.load_idx}(${comp}, ${all_indices});
+        ${output.ctype} psi_${comp} = ${input.load_idx}(${trajectory}, ${comp}, ${coords});
+        ${output.ctype} kpsi_${comp} = ${kinput.load_idx}(${trajectory}, ${comp}, ${coords});
         ${output.ctype} dpsi_${comp};
         %endfor
 
         %if diffusion is not None:
         %for ncomp in range(noise_sources):
-        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${ncomp}, ${all_indices});
+        ${dW.ctype} dW_${ncomp} = ${dW.load_idx}(${trajectory}, ${ncomp}, ${coords});
         %endfor
         %endif
 
@@ -68,12 +68,12 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
         dpsi_${comp} =
             kpsi_${comp}
             + ${mul_cr}(
-                + ${drift.module}${comp}(${idx_args}, ${psi_args}, ${t} + ${dt} * ${ci}),
+                + ${drift.module}${comp}(${coords}, ${psi_args}, ${t} + ${dt} * ${ci}),
                 ${dt})
             %if diffusion is not None:
             %for ncomp in range(noise_sources):
             + ${mul_cn}(${diffusion.module}${comp}_${ncomp}(
-                ${idx_args}, ${psi_args}, ${t} + ${dt} * ${ci}), dW_${ncomp})
+                ${coords}, ${psi_args}, ${t} + ${dt} * ${ci}), dW_${ncomp})
             %endfor
             %endif
             ;
@@ -85,12 +85,12 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
         new_u = psi_${comp} + ${mul_cr}(new_omega, ${bi});
         if (${stage} < 5)
         {
-            ${omega.store_idx}(${comp}, ${all_indices}, new_omega);
+            ${omega.store_idx}(${trajectory}, ${comp}, ${coords}, new_omega);
         }
-        ${output.store_idx}(${comp}, ${all_indices}, new_u);
+        ${output.store_idx}(${trajectory}, ${comp}, ${coords}, new_u);
         %endfor
         """,
-        guiding_array=state_arr.shape[1:],
+        guiding_array=(state_arr.shape[0],) + state_arr.shape[2:],
         render_kwds=dict(
             drift=drift,
             diffusion=diffusion,
@@ -114,12 +114,12 @@ class RK46NLStepper(Computation):
             assert diffusion.components == drift.components
             self._noise = True
             dW_dtype = real_dtype if diffusion.real_noise else drift.dtype
-            dW_arr = Type(dW_dtype, (diffusion.noise_sources, trajectories) + shape)
+            dW_arr = Type(dW_dtype, (trajectories, diffusion.noise_sources) + shape)
         else:
             dW_arr = None
             self._noise = False
 
-        state_arr = Type(drift.dtype, (drift.components, trajectories) + shape)
+        state_arr = Type(drift.dtype, (trajectories, drift.components) + shape)
 
         Computation.__init__(self,
             [Parameter('output', Annotation(state_arr, 'o')),
