@@ -8,60 +8,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import reikna.cluda.dtypes as dtypes
-import reikna.cluda.functions as functions
 import reikna.cluda as cluda
-from reikna.cluda import Module
 
-from beclab.integrator import (
-    Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
-    CDIPStepper, CDStepper, RK4IPStepper, RK46NLStepper)
-from beclab.modules import get_drift, get_diffusion
-from beclab.grid import UniformGrid, box_3D
-from beclab.beam_splitter import BeamSplitter
 import beclab.constants as const
-from beclab.ground_state import get_TF_state
-
-
-class NSampler(Sampler):
-
-    def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
-        Sampler.__init__(self)
-        self._thr = thr
-        self._wigner = wigner
-        self._grid = grid
-        self._beam_splitter = beam_splitter
-        self._psi_temp = psi_temp
-
-    def __call__(self, psi, t):
-        self._thr.copy_array(psi, dest=self._psi_temp)
-        self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
-        psi = self._psi_temp.get()
-
-        # (components, ensembles, x_points)
-        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
-        return (density.sum((2, 3, 4)) * self._grid.dV).T
-
-
-class DensitySampler(Sampler):
-
-    def __init__(self, thr, grid, psi_temp, beam_splitter, wigner=False):
-        Sampler.__init__(self, no_stderr=True)
-        self._thr = thr
-        self._wigner = wigner
-        self._grid = grid
-        self._beam_splitter = beam_splitter
-        self._psi_temp = psi_temp
-
-    def __call__(self, psi, t):
-        self._thr.copy_array(psi, dest=self._psi_temp)
-        self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
-        psi = self._psi_temp.get()
-
-        # (components, ensembles, x_points)
-        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
-        axial_density = density.sum((2, 3)) * self._grid.dxs[0] * self._grid.dxs[1]
-        return axial_density.transpose(1, 0, 2)
+from beclab import *
 
 
 def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
@@ -75,8 +25,9 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     print()
 
     # Simulation parameters
+
     lattice_size = (8, 8, 64) # spatial lattice points
-    paths = 16 if wigner else 1 # simulation paths
+    trajectories = 16 if wigner else 1 # simulation paths
     interval = 0.12 # time interval
     samples = 200 # how many samples to take during simulation
     steps = samples * 100 # number of time steps (should be multiple of samples)
@@ -85,23 +36,29 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     f_rabi = 350
     N = 55000
     state_dtype = numpy.complex128
-
-    rng = numpy.random.RandomState(1234)
-
     freqs = (97.6, 97.6, 11.96)
-    states = [const.Rb87_1_minus1, const.Rb87_2_1]
-
-    get_g = lambda s1, s2: const.get_scattering_constant(
-        const.get_interaction_constants(const.B_Rb87_1m1_2p1, s1, s2)[0], s1.m)
-    scattering = numpy.array([[get_g(s1, s2) for s2 in states] for s1 in states])
+    components = [const.rb87_1_minus1, const.rb87_2_1]
+    scattering = const.scattering_matrix(components, B=const.magical_field_Rb87_1m1_2p1)
     losses = [
         (gamma, (1, 0)),
         (gamma, (0, 1))]
 
-    grid = UniformGrid(lattice_size, box_3D(N, freqs, states[0]))
+    # Create simulation objects
+    rng = numpy.random.RandomState(1234)
+    potential = HarmonicPotential(state_dtype, components, freqs)
+    system = System(components, scattering, losses=losses, potential=potential)
+    grid = UniformGrid(lattice_size, box_for_tf(system, 0, N))
 
-    # Initial TF state
-    psi = get_TF_state(thr, grid, state_dtype, states, freqs, [N, 0])
+    gs_gen = ImaginaryTimeGroundState(
+        thr, state_dtype, grid, system,
+        stepper_cls=RK46NLStepper)
+    integrator = Integrator(
+        thr, state_dtype, grid, system,
+        trajectories=trajectories, stepper_cls=stepper_cls,
+        wigner=wigner, seed=rng.randint(0, 2**32-1))
+
+    # Ground state
+    psi = gs_gen([N, 0], E_diff=1e-7, E_conv=1e-9, sample_time=1e-5)
     axial_n_max = (
         (numpy.abs(psi.data.get()[0,0]) ** 2).sum((0, 1)) * grid.dxs[0] * grid.dxs[1]).max()
 
@@ -109,42 +66,21 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     if wigner:
         psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
 
-    bs = BeamSplitter(thr, psi.data, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
-
-    # Prepare integrator components
-    drift = get_drift(state_dtype, grid, states, freqs, scattering, losses, wigner=wigner)
-    if wigner:
-        diffusion = get_diffusion(state_dtype, grid, 2, losses) if wigner else None
-    else:
-        diffusion = None
-
-    stepper = stepper_cls(
-        grid.shape, grid.box, drift,
-        kinetic_coeff=1j * const.HBAR / (2 * states[0].m),
-        ensembles=paths,
-        diffusion=diffusion)
-
-    if wigner:
-        wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=rng.randint(0, 2**32-1))
-    integrator = Integrator(
-        thr, stepper,
-        wiener=wiener if wigner else None)
-
-    # Integrate
-    psi_temp = thr.empty_like(psi.data)
-    n_sampler = NSampler(thr, grid, psi_temp, bs, wigner=wigner)
-    density_sampler = DensitySampler(thr, grid, psi_temp, bs, wigner=wigner)
-    bs(psi.data, 0, numpy.pi / 2)
-
+    # Prepare samplers
+    bs = BeamSplitter(psi, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
+    n_sampler = PopulationSampler(wfs, beam_splitter=bs)
+    density_sampler = DensitySampler(wfs, beam_splitter=bs)
     samplers = dict(N=n_sampler, axial_density=density_sampler)
 
+    # Integrate
+    bs(psi, 0, numpy.pi / 2)
     if integration == 'fixed':
         result, info = integrator.fixed_step(
-            psi.data, 0, interval, steps, samples=samples,
+            psi, 0, interval, steps, samples=samples,
             samplers=samplers, convergence=['N'])
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
-            psi.data, 0, interval / samples, t_end=interval,
+            psi, 0, interval / samples, t_end=interval,
             convergence=dict(N=1e-4), samplers=samplers)
 
     N_mean = result['N']
@@ -217,14 +153,14 @@ if __name__ == '__main__':
 
     steppers = [
         CDIPStepper,
-        CDStepper,
-        RK4IPStepper,
-        RK46NLStepper,
+        #CDStepper,
+        #RK4IPStepper,
+        #RK46NLStepper,
     ]
 
     integrations = [
         'fixed',
-        'adaptive',
+        #'adaptive',
     ]
 
     for stepper_cls, integration in itertools.product(steppers, integrations):

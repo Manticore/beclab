@@ -1,7 +1,7 @@
 import numpy
 
 from reikna.cluda import dtypes, functions
-from reikna.core import Computation, Parameter, Annotation, Transformation
+from reikna.core import Computation, Parameter, Annotation, Transformation, Type
 from reikna.cbrng import CBRNG
 from reikna.fft import FFT
 from reikna.algorithms import PureParallel
@@ -85,56 +85,77 @@ def get_multiply(wfs):
             mul=functions.mul(wfs.dtype, real_dtype)))
 
 
-class WavefunctionSet:
+class WavefunctionSetMetadata:
 
-    def __init__(self, thr, grid, dtype, components=1, ensembles=1, representation=REPR_CLASSICAL):
-        self._thr = thr
+    def __init__(self, thread, dtype, grid,
+            components=1, trajectories=1, representation=REPR_CLASSICAL):
+
+        self.thread = thread
         self.grid = grid
         self.components = components
-        self.ensembles = ensembles
+        self.trajectories = trajectories
         self.dtype = dtype
         self.representation = representation
-        self.shape = (components, ensembles) + grid.shape
-        self.data = thr.array(self.shape, dtype)
+        self.shape = (components, trajectories) + grid.shape
+        self.data = Type(dtype, self.shape)
+
+
+class WavefunctionSet(WavefunctionSetMetadata):
+
+    def __init__(self, thread, dtype, grid,
+            components=1, trajectories=1, representation=REPR_CLASSICAL):
+
+        WavefunctionSetMetadata.__init__(
+            self, thread, dtype, grid,
+            components=components, trajectories=trajectories, representation=representation)
+        self.data = thread.array(self.shape, dtype)
         self._multiply = get_multiply(self)
+
+    @classmethod
+    def for_meta(cls, wfs_meta):
+        return cls(
+            wfs_meta.thread, wfs_meta.dtype, wfs_meta.grid,
+            components=wfs_meta.components,
+            trajectories=wfs_meta.trajectories,
+            representation=wfs_meta.representation)
 
     def fill_with(self, data):
         data_dims = len(data.shape)
         assert data.shape == self.shape[-data_dims:]
         assert data.dtype == self.dtype
         data = numpy.tile(data, self.shape[:-data_dims] + (1,) * data_dims)
-        self._thr.to_device(data, dest=self.data)
+        self.thread.to_device(data, dest=self.data)
 
     def multiply_by(self, coeffs):
         self._multiply(self.data, self.data, *coeffs)
 
-    def to_ensembles(self, ensembles):
-        assert self.ensembles == 1
+    def to_trajectories(self, trajectories):
+        assert self.trajectories == 1
         wf = WavefunctionSet(
-            self._thr, self.grid, self.dtype,
-            components=self.components, ensembles=ensembles,
+            self.thread, self.grid, self.dtype,
+            components=self.components, trajectories=trajectories,
             representation=self.representation)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)
         wf.fill_with(self.data.get())
         return wf
 
-    def to_wigner_coherent(self, ensembles, seed=None):
+    def to_wigner_coherent(self, trajectories, seed=None):
         assert self.representation == REPR_CLASSICAL
-        assert self.ensembles == 1
+        assert self.trajectories == 1
         wf = WavefunctionSet(
-            self._thr, self.grid, self.dtype,
-            components=self.components, ensembles=ensembles,
+            self.thread, self.grid, self.dtype,
+            components=self.components, trajectories=trajectories,
             representation=REPR_WIGNER)
-        wcoh = WignerCoherent(self.grid, wf.data, self.data).compile(self._thr)
+        wcoh = WignerCoherent(self.grid, wf.data, self.data).compile(self.thread)
         wcoh(wf.data, self.data)
         return wf
 
-    def to_positivep_coherent(self, ensembles):
-        assert self.ensembles == 1
+    def to_positivep_coherent(self, trajectories):
+        assert self.trajectories == 1
         wf = WavefunctionSet(
-            self._thr, self.grid, self.dtype,
-            components=self.components, ensembles=ensembles,
+            self.thread, self.grid, self.dtype,
+            components=self.components, trajectories=trajectories,
             representation=REPR_POSITIVE_P)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)

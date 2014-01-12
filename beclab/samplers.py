@@ -1,7 +1,8 @@
 import numpy
 
-from beclab.integrator import Sampler
+from beclab.integrator import Sampler, StopIntegration
 from beclab.wavefunction import REPR_WIGNER
+from beclab.meters import EnergyMeter
 
 
 class PsiSampler(Sampler):
@@ -15,7 +16,7 @@ class PsiSampler(Sampler):
 
 class PopulationSampler(Sampler):
 
-    def __init__(self, wfs, beam_splitter=None, theta=None):
+    def __init__(self, wfs, beam_splitter=None):
         Sampler.__init__(self)
         self._thr = wfs._thr
         self._wigner = (wfs.representation == REPR_WIGNER)
@@ -23,14 +24,15 @@ class PopulationSampler(Sampler):
         self._beam_splitter = beam_splitter
         if beam_splitter is not None:
             self._psi_temp = self._thr.empty_like(wfs.data)
-            self._theta = theta
 
     def __call__(self, psi, t):
-        self._thr.copy_array(psi, dest=self._psi_temp)
-        self._beam_splitter(self._psi_temp, t, self._theta)
-        psi = self._psi_temp.get()
+        if self._beam_splitter is not None:
+            self._thr.copy_array(psi, dest=self._psi_temp)
+            self._beam_splitter(self._psi_temp, t, numpy.pi / 2)
+            psi = self._psi_temp.get()
+        else:
+            psi = psi.get()
 
-        # (components, ensembles, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
         return density.sum((2, 3, 4)) * self._grid.dV
 
@@ -45,7 +47,6 @@ class VisibilitySampler(Sampler):
     def __call__(self, psi, t):
         psi = psi.get()
 
-        # (components, ensembles, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
 
         N = (density.sum((2, 3, 4)) * self._grid.dV).mean(1)
@@ -56,36 +57,65 @@ class VisibilitySampler(Sampler):
 
 class Density1DSampler(Sampler):
 
-    def __init__(self, wfs, axis=-1, beam_splitter=None, theta=None):
+    def __init__(self, wfs_meta, axis=-1, beam_splitter=None, theta=0):
         Sampler.__init__(self)
-        self._thr = wfs._thr
-        self._wigner = (wfs.representation == REPR_WIGNER)
-        self._grid = wfs.grid
+        self._thr = wfs_meta.thread
+        self._wigner = (wfs_meta.representation == REPR_WIGNER)
+        self._grid = wfs_meta.grid
         self._beam_splitter = beam_splitter
 
         if axis < 0:
-            axis = len(wfs.shape) + axis
+            axis = len(wfs_meta.shape) + axis
         else:
             axis = axis + 2
-        sum_over = set(range(2, len(wfs.shape)))
+        sum_over = set(range(2, len(wfs_meta.shape)))
         sum_over.remove(axis)
         self._sum_over = tuple(sum_over)
 
-        self._dV = 1.
-        for a in self._sum_over:
-            self._dV *= self._grid.dxs[a - 2]
-
+        self._beam_splitter = beam_splitter
         if beam_splitter is not None:
-            self._psi_temp = self._thr.empty_like(wfs.data)
+            self._psi_temp = self._thr.empty_like(wfs_meta.data)
             self._theta = theta
 
     def __call__(self, psi, t):
-        self._thr.copy_array(psi, dest=self._psi_temp)
-        self._beam_splitter(self._psi_temp, t, self._theta)
-        psi = self._psi_temp.get()
+        if self._beam_splitter is not None:
+            self._thr.copy_array(psi, dest=self._psi_temp)
+            self._beam_splitter(self._psi_temp, t, self._theta)
+            psi = self._psi_temp.get()
+        else:
+            psi = psi.get()
 
-        # (components, ensembles, x_points)
+        # (components, trajectories, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
-        density_1d = density.sum(self._sum_over) * self._dV
+        density_1d = density.sum(self._sum_over) * self._grid.dV
 
         return density_1d.transpose(1, 0, 2)
+
+
+class EnergySampler(Sampler):
+
+    def __init__(self, wfs_meta, system):
+        Sampler.__init__(self, no_stderr=True)
+        self._energy = EnergyMeter(wfs_meta, system)
+
+    def __call__(self, wfs_data, t):
+        return self._energy(wfs_data)
+
+
+class StoppingEnergySampler(Sampler):
+
+    def __init__(self, wfs, system, limit=1e-6):
+        Sampler.__init__(self, no_stderr=True)
+        self._energy = EnergyMeter(wfs, system)
+        self._previous_E = None
+        self._limit = limit
+
+    def __call__(self, psi, t):
+        E = self._energy(psi)
+
+        if self._previous_E is not None:
+            if abs(E[0] - self._previous_E[0]) / abs(E[0]) < self._limit:
+                raise StopIntegration(E)
+
+        self._previous_E = E
+        return E

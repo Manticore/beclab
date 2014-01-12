@@ -89,7 +89,7 @@ class CDStepper(Computation):
     abbreviation = "CD"
 
     def __init__(self, shape, box, drift,
-            ensembles=1, kinetic_coeff=0.5j, diffusion=None, iterations=3):
+            trajectories=1, kinetic_coeff=0.5j, diffusion=None, iterations=3):
 
         self._iterations = iterations
         real_dtype = dtypes.real_for(drift.dtype)
@@ -99,12 +99,12 @@ class CDStepper(Computation):
             assert diffusion.components == drift.components
             self._noise = True
             dW_dtype = real_dtype if diffusion.real_noise else drift.dtype
-            dW_arr = Type(dW_dtype, (diffusion.noise_sources, ensembles) + shape)
+            dW_arr = Type(dW_dtype, (diffusion.noise_sources, trajectories) + shape)
         else:
             dW_arr = None
             self._noise = False
 
-        state_arr = Type(drift.dtype, (drift.components, ensembles) + shape)
+        state_arr = Type(drift.dtype, (drift.components, trajectories) + shape)
 
         Computation.__init__(self,
             [Parameter('output', Annotation(state_arr, 'o')),

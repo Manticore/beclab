@@ -8,24 +8,7 @@ import matplotlib.pyplot as plt
 
 from reikna import cluda
 
-from beclab.integrator import Sampler
-import beclab.constants as const
-from beclab.ground_state import it_ground_state
-from beclab.bec import System, box_for_tf, HarmonicPotential
-from beclab.grid import UniformGrid
-
-
-
-class AxialViewSampler(Sampler):
-
-    def __init__(self, grid):
-        Sampler.__init__(self, no_stderr=True)
-        self._grid = grid
-
-    def __call__(self, psi, t):
-        psi = psi.get()
-        density = numpy.abs(psi) ** 2
-        return (density.sum((2, 3)) * self._grid.dxs[0] * self._grid.dxs[1]).transpose(1, 0, 2)
+from beclab import *
 
 
 if __name__ == '__main__':
@@ -39,15 +22,16 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
+    potential = HarmonicPotential(dtype, freqs)
     scattering = const.scattering_matrix([comp])
-    potential = HarmonicPotential(freqs)
     system = System([comp], scattering, potential=potential)
-    box = box_for_tf(system, 0, N)
-    grid = UniformGrid(shape, box)
-    ax_sampler = AxialViewSampler(grid)
+    grid = UniformGrid(shape, box_for_tf(system, 0, N))
 
-    gs, result, info = it_ground_state(
-        thr, grid, dtype, system, [N], E_diff=1e-7, E_conv=1e-9, sample_time=1e-4,
+    gs_gen = ImaginaryTimeGroundState(thr, dtype, grid, system)
+    ax_sampler = Density1DSampler(gs_gen.wfs_meta, theta=numpy.pi / 2)
+
+    gs, result, info = gs_gen(
+        [N], E_diff=1e-7, E_conv=1e-9, sample_time=1e-4,
         samplers=dict(axial_density=ax_sampler), return_info=True)
 
     fig = plt.figure()

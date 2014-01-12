@@ -5,26 +5,25 @@ import reikna.cluda.functions as functions
 from reikna.cluda import Module
 
 from beclab.integrator import Drift, Diffusion
-from beclab.grid import UniformGrid
 import beclab.constants as const
 
 
-def get_drift(state_dtype, grid, states, freqs, scattering,
-        losses=None, wigner=False, imaginary_time=False):
+def get_drift(state_dtype, dimensions, components, interactions=None, corrections=None,
+        potential=None, losses=None, unitary_coefficient=1):
     """
-    freqs, array(dims): trap frequencies (Hz).
-    scattering, array(comps, comps): two-body elastic interaction constants.
+    interactions, array(comps, comps): two-body elastic interaction constants.
     losses, [(kappa, [l_1, ..., l_comps])]: inelastic interaction constants
         (l_i specifies the number of atoms of component i participating in the interaction).
         Coefficients are the "theorist's" ones.
-    dV: a volume element (used to calculate Wigner correction to the elastic interaction).
     """
-    assert isinstance(grid, UniformGrid)
-
     if losses is None:
         losses = []
     real_dtype = dtypes.real_for(state_dtype)
-    components = scattering.shape[0]
+
+    if interactions is None:
+        interactions = numpy.zeros((components, components))
+    if corrections is None:
+        corrections = numpy.zeros_like(interactions)
 
     return Drift(
         Module.create(
@@ -36,7 +35,7 @@ def get_drift(state_dtype, grid, states, freqs, scattering,
             %>
             %for comp in range(components):
             INLINE WITHIN_KERNEL ${s_ctype} ${prefix}${comp}(
-                %for dim in range(grid.dimensions):
+                %for dim in range(dimensions):
                 const int idx_${dim},
                 %endfor
                 %for c in range(components):
@@ -45,34 +44,26 @@ def get_drift(state_dtype, grid, states, freqs, scattering,
                 ${r_ctype} t)
             {
                 // Potential
-                %for dim in range(grid.dimensions):
-                const ${r_ctype} x_${dim} =
-                    ${r_const(grid.xs[dim][0])} + ${r_const(grid.dxs[dim])} * idx_${dim};
-                %endfor
-                const ${r_ctype} V =
-                    ${r_const(states[comp].m / HBAR)}
-                    * (
-                        %for dim in range(grid.dimensions):
-                        + ${r_const((2 * numpy.pi * freqs[dim]) ** 2)}
-                            * x_${dim} * x_${dim}
-                        %endfor
-                    ) / 2;
-
+                %if potential is not None:
+                const ${r_ctype} V = ${potential}${comp}(
+                    %for dim in range(dimensions):
+                    idx_${dim},
+                    %endfor
+                    t
+                    );
+                %else:
+                const ${r_ctype} V = 0;
+                %endif
 
                 // Elastic interactions
                 const ${r_ctype} U =
                     %for other_comp in range(components):
                     <%
-                        if not wigner:
-                            correction = 0
-                        elif comp == other_comp:
-                            correction = 1. / grid.dV
-                        else:
-                            correction = 0.5 / grid.dV
-                        g = scattering[comp, other_comp]
+                        g = interactions[comp, other_comp]
+                        correction = corrections[comp, other_comp]
                     %>
                     %if g != 0:
-                    + ${r_const(g / HBAR)}
+                    + ${r_const(g)}
                         * (${norm}(psi_${other_comp}) - ${r_const(correction)})
                     %endif
                     %endfor
@@ -117,14 +108,10 @@ def get_drift(state_dtype, grid, states, freqs, scattering,
                     %endfor
                     ;
 
-
                 const ${s_ctype} unitary = ${mul_ss}(
                     COMPLEX_CTR(${s_ctype})(
-                        %if imaginary_time:
-                        -1, 0
-                        %else:
-                        0, -1
-                        %endif
+                        ${unitary_coefficient.real},
+                        ${unitary_coefficient.imag}
                         ),
                     ${mul_sr}(psi_${comp}, V + U));
 
@@ -133,29 +120,26 @@ def get_drift(state_dtype, grid, states, freqs, scattering,
             %endfor
             """,
             render_kwds=dict(
-                imaginary_time=imaginary_time,
-                HBAR=const.HBAR,
-                states=states,
-                grid=grid,
+                unitary_coefficient=unitary_coefficient,
+                dimensions=dimensions,
                 components=components,
+                potential=potential,
                 s_dtype=state_dtype,
                 r_dtype=real_dtype,
-                freqs=freqs,
-                scattering=scattering,
+                interactions=interactions,
+                corrections=corrections,
                 losses=losses,
-                wigner=wigner,
                 mul_ss=functions.mul(state_dtype, state_dtype),
                 mul_sr=functions.mul(state_dtype, real_dtype),
                 norm=functions.norm(state_dtype),
                 )),
-        state_dtype, components=components)
+        state_dtype, components=interactions.shape[0])
 
 
-def get_diffusion(state_dtype, grid, components, losses):
+def get_diffusion(state_dtype, dimensions, components, losses):
 
     # Preparing multi-argument multiplications here, since they are modules
     # and cannot be instantiated inside a template.
-    dims = grid.dimensions
     real_dtype = dtypes.real_for(state_dtype)
     muls = []
     for _, ls in losses:
@@ -183,7 +167,7 @@ def get_diffusion(state_dtype, grid, components, losses):
                 coeff = numpy.sqrt(kappa)
             %>
             INLINE WITHIN_KERNEL ${s_ctype} ${prefix}${comp}_${noise_source}(
-                %for dim in range(dims):
+                %for dim in range(dimensions):
                 const int idx_${dim},
                 %endfor
                 %for c in range(components):
@@ -219,7 +203,7 @@ def get_diffusion(state_dtype, grid, components, losses):
             render_kwds=dict(
                 s_dtype=state_dtype,
                 losses=losses,
-                dims=dims,
+                dimensions=dimensions,
                 components=components,
                 noise_sources=len(losses),
                 muls=muls,

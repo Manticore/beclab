@@ -94,9 +94,7 @@ import reikna.cluda.functions as functions
 import reikna.cluda as cluda
 from reikna.cluda import Module
 
-from beclab.integrator import (
-    Sampler, StopIntegration, Integrator, Wiener, Drift, Diffusion,
-    CDIPStepper, CDStepper, RK4IPStepper, RK46NLStepper)
+from beclab.integrator import *
 
 
 def get_drift(state_dtype, U, gamma, dx, wigner=False):
@@ -176,7 +174,7 @@ class NSampler(Sampler):
     def __call__(self, psi, t):
         psi = psi.get()
 
-        # (components, ensembles, x_points)
+        # (components, trajectories, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._dx if self._wigner else 0)
 
         N = density.sum(2) * self._dx
@@ -199,7 +197,7 @@ class DensitySampler(Sampler):
     def __call__(self, psi, t):
         psi = psi.get()
 
-        # (components, ensembles, x_points)
+        # (components, trajectories, x_points)
         density = numpy.abs(psi) ** 2 - (0.5 / self._dx if self._wigner else 0)
         return density[0]
 
@@ -254,7 +252,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     drift = get_drift(state_dtype, U, gamma, dx, wigner=wigner)
     stepper = stepper_cls((lattice_size,), (domain[1] - domain[0],), drift,
         kinetic_coeff=1j,
-        ensembles=paths if wigner else 1,
+        trajectories=paths if wigner else 1,
         diffusion=get_diffusion(state_dtype, gamma) if wigner else None)
 
     if wigner:

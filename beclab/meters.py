@@ -13,55 +13,63 @@ from beclab.integrator.helpers import get_ksquared
 
 class _PopulationMeter(Computation):
 
-    def __init__(self, wfs):
+    def __init__(self, wfs_meta):
 
-        assert wfs.representation in (REPR_CLASSICAL, REPR_WIGNER)
+        assert wfs_meta.representation in (REPR_CLASSICAL, REPR_WIGNER)
 
-        real_dtype = dtypes.real_for(wfs.dtype)
-        pop_arr = Type(real_dtype, (wfs.components, wfs.ensembles))
+        real_dtype = dtypes.real_for(wfs_meta.dtype)
+        pop_arr = Type(real_dtype, (wfs_meta.components, wfs_meta.trajectories))
         Computation.__init__(self, [
             Parameter(
                 'populations', Annotation(pop_arr, 'o')),
-            Parameter('wfs', Annotation(wfs.data, 'i'))])
+            Parameter('wfs_data', Annotation(wfs_meta.data, 'i'))])
 
-        real_arr = Type(real_dtype, wfs.shape)
+        real_arr = Type(real_dtype, wfs_meta.shape)
         self._reduce = Reduce(
             real_arr, predicate_sum(real_dtype),
-            axes=list(range(2, len(wfs.shape))))
+            axes=list(range(2, len(wfs_meta.shape))))
 
-        norm = norm_const(wfs.data, 2)
-        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
+        norm = norm_const(wfs_meta.data, 2)
+        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs_meta.grid.dV))
         self._reduce.parameter.input.connect(scale, scale.output, norm=scale.input)
-        self._reduce.parameter.norm.connect(norm, norm.output, wfs=norm.input)
+        self._reduce.parameter.norm.connect(norm, norm.output, wfs_data=norm.input)
 
-        if wfs.representation == REPR_WIGNER:
-            add = add_const(pop_arr, -wfs.grid.modes / 2.)
+        if wfs_meta.representation == REPR_WIGNER:
+            add = add_const(pop_arr, -wfs_meta.grid.modes / 2.)
             self._reduce.parameter.output.connect(add, add.input, populations=add.output)
 
-    def _build_plan(self, plan_factory, device_params, populations, wfs):
+    def _build_plan(self, plan_factory, device_params, populations, wfs_data):
         plan = plan_factory()
-        plan.computation_call(self._reduce, populations, wfs)
+        plan.computation_call(self._reduce, populations, wfs_data)
         return plan
 
 
 class PopulationMeter:
 
-    def __init__(self, thr, wfs):
-        self._meter = _PopulationMeter(wfs).compile(thr)
-        self._out = thr.empty_like(self._meter.parameter.populations)
+    def __init__(self, wfs_meta):
+        thread = wfs_meta.thread
+        self._meter = _PopulationMeter(wfs_meta).compile(thread)
+        self._out = thread.empty_like(self._meter.parameter.populations)
 
-    def __call__(self, wfs):
-        self._meter(self._out, wfs.data)
+    def __call__(self, wfs_data):
+        self._meter(self._out, wfs_data)
         return self._out.get()
 
 
-def get_energy_trf(wfs, system):
-    real_dtype = dtypes.real_for(wfs.dtype)
+def get_energy_trf(wfs_meta, system):
+
+    real_dtype = dtypes.real_for(wfs_meta.dtype)
+    if system.potential is not None:
+        potential = system.potential.get_module(
+            wfs_meta.dtype, wfs_meta.grid, system.components)
+    else:
+        potential = None
+
     return Transformation(
         [
-            Parameter('energy', Annotation(Type(real_dtype, wfs.shape[1:]), 'o')),
-            Parameter('data', Annotation(wfs.data, 'i')),
-            Parameter('kdata', Annotation(wfs.data, 'i'))],
+            Parameter('energy', Annotation(Type(real_dtype, wfs_meta.shape[1:]), 'o')),
+            Parameter('data', Annotation(wfs_meta.data, 'i')),
+            Parameter('kdata', Annotation(wfs_meta.data, 'i'))],
         """
         <%
             s_ctype = dtypes.ctype(s_dtype)
@@ -73,45 +81,32 @@ def get_energy_trf(wfs, system):
         ${kdata.ctype} kdata_${comp} = ${kdata.load_idx}(${comp}, ${', '.join(idxs)});
         %endfor
 
-        ## FIXME: to be generalized as ScalarField
-        %for dim in range(grid.dimensions):
-        const ${r_ctype} x_${dim} =
-            ${r_const(grid.xs[dim][0])} + ${r_const(grid.dxs[dim])} * ${idxs[dim + 1]};
+        %if potential is not None:
+        %for comp in range(components):
+        const ${r_ctype} V_${comp} = ${potential}${comp}(
+            %for dim in range(dimensions):
+            ${idxs[1 + dim]},
+            %endfor
+            0
+            );
         %endfor
-        const ${r_ctype} V =
-            ${r_const(system.components[comp].m)}
-            * (
-                %for dim in range(grid.dimensions):
-                + ${r_const((2 * numpy.pi * system.potential.trap_frequencies[dim]) ** 2)}
-                    * x_${dim} * x_${dim}
-                %endfor
-            ) / 2;
+        %endif
 
         %for comp in range(components):
         ${r_ctype} n_${comp} = ${norm}(data_${comp});
         %endfor
 
-        <%
-            # FIXME: kinetic and scattering coefficients can be very low and amount to 0
-            # in case of single precision.
-            # So for the time being we are splitting them in two.
-
-            kinetic_coeff = (1j * HBAR * system.kinetic_coeff).real
-            sign_kcoeff = 1 if kinetic_coeff > 0 else -1
-            sqrt_kcoeff = numpy.sqrt(abs(kinetic_coeff))
-        %>
         ${r_ctype} E =
             %for comp in range(components):
-            + (${sign_kcoeff}) * ${r_const(sqrt_kcoeff)}
+            + (${r_const(system.kinetic_coeff)})
                 * (${mul_ss}(data_${comp}, kdata_${comp})).x
-                * ${r_const(sqrt_kcoeff)}
-            + V * n_${comp}
+            + V_${comp} * n_${comp}
                 %for other_comp in range(components):
                 <%
-                    sqrt_g = numpy.sqrt(system.scattering[comp, other_comp])
+                    sqrt_g = numpy.sqrt(system.interactions[comp, other_comp])
                 %>
-                + (${r_const(sqrt_g)} * n_${comp})
-                    * (${r_const(sqrt_g)} * n_${other_comp}) / 2
+                + (${r_const(system.interactions[comp, other_comp])})
+                    * n_${comp} * n_${other_comp} / 2
                 %endfor
             %endfor
             ;
@@ -119,14 +114,15 @@ def get_energy_trf(wfs, system):
         ${energy.store_same}(E);
         """,
         render_kwds=dict(
-            components=wfs.components,
+            dimensions=wfs_meta.grid.dimensions,
+            components=wfs_meta.components,
+            potential=potential,
             system=system,
             HBAR=const.HBAR,
-            grid=wfs.grid,
-            s_dtype=wfs.dtype,
+            s_dtype=wfs_meta.dtype,
             r_dtype=real_dtype,
-            mul_ss=functions.mul(wfs.dtype, wfs.dtype),
-            norm=functions.norm(wfs.dtype),
+            mul_ss=functions.mul(wfs_meta.dtype, wfs_meta.dtype),
+            norm=functions.norm(wfs_meta.dtype),
             ))
 
 
@@ -147,54 +143,55 @@ def get_ksquared_trf(state_arr, ksquared_arr):
 
 class _EnergyMeter(Computation):
 
-    def __init__(self, wfs, system):
+    def __init__(self, wfs_meta, system):
 
         # FIXME: generalize for Wigner?
-        assert wfs.representation == REPR_CLASSICAL
+        assert wfs_meta.representation == REPR_CLASSICAL
 
-        real_dtype = dtypes.real_for(wfs.dtype)
-        energy_arr = Type(real_dtype, (wfs.ensembles,))
+        real_dtype = dtypes.real_for(wfs_meta.dtype)
+        energy_arr = Type(real_dtype, (wfs_meta.trajectories,))
         Computation.__init__(self, [
             Parameter('energy', Annotation(energy_arr, 'o')),
-            Parameter('wfs', Annotation(wfs.data, 'i'))])
+            Parameter('wfs_data', Annotation(wfs_meta.data, 'i'))])
 
-        self._ksquared = get_ksquared(wfs.grid.shape, wfs.grid.box).astype(real_dtype)
-        ksquared_trf = get_ksquared_trf(wfs.data, self._ksquared)
+        self._ksquared = get_ksquared(wfs_meta.grid.shape, wfs_meta.grid.box).astype(real_dtype)
+        ksquared_trf = get_ksquared_trf(wfs_meta.data, self._ksquared)
 
-        self._fft = FFT(wfs.data, axes=range(2, len(wfs.shape)))
-        self._fft_with_kprop = FFT(wfs.data, axes=range(2, len(wfs.shape)))
+        self._fft = FFT(wfs_meta.data, axes=range(2, len(wfs_meta.shape)))
+        self._fft_with_kprop = FFT(wfs_meta.data, axes=range(2, len(wfs_meta.shape)))
         self._fft_with_kprop.parameter.output.connect(
             ksquared_trf, ksquared_trf.input,
             output_prime=ksquared_trf.output, ksquared=ksquared_trf.ksquared)
 
-        real_arr = Type(real_dtype, wfs.shape[1:])
+        real_arr = Type(real_dtype, wfs_meta.shape[1:])
         self._reduce = Reduce(
             real_arr, predicate_sum(real_dtype),
-            axes=list(range(1, len(wfs.shape) - 1)))
+            axes=list(range(1, len(wfs_meta.shape) - 1)))
 
-        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs.grid.dV))
+        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs_meta.grid.dV))
         self._reduce.parameter.input.connect(scale, scale.output, energy=scale.input)
 
-        energy = get_energy_trf(wfs, system)
+        energy = get_energy_trf(wfs_meta, system)
         self._reduce.parameter.energy.connect(energy, energy.energy,
             data=energy.data, kdata=energy.kdata)
 
-    def _build_plan(self, plan_factory, device_params, energy, wfs):
+    def _build_plan(self, plan_factory, device_params, energy, wfs_data):
         plan = plan_factory()
-        kdata = plan.temp_array_like(wfs)
+        kdata = plan.temp_array_like(wfs_data)
         ksquared_device = plan.persistent_array(self._ksquared)
-        plan.computation_call(self._fft_with_kprop, kdata, ksquared_device, wfs)
+        plan.computation_call(self._fft_with_kprop, kdata, ksquared_device, wfs_data)
         plan.computation_call(self._fft, kdata, kdata, inverse=True)
-        plan.computation_call(self._reduce, energy, wfs, kdata)
+        plan.computation_call(self._reduce, energy, wfs_data, kdata)
         return plan
 
 
 class EnergyMeter:
 
-    def __init__(self, thr, wfs, system):
-        self._meter = _EnergyMeter(wfs, system).compile(thr)
-        self._out = thr.empty_like(self._meter.parameter.energy)
+    def __init__(self, wfs_meta, system):
+        thread = wfs_meta.thread
+        self._meter = _EnergyMeter(wfs_meta, system).compile(thread)
+        self._out = thread.empty_like(self._meter.parameter.energy)
 
-    def __call__(self, wfs):
-        self._meter(self._out, wfs.data)
+    def __call__(self, wfs_data):
+        self._meter(self._out, wfs_data)
         return self._out.get()

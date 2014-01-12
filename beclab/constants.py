@@ -73,10 +73,10 @@ def scattering_length(comp1, comp2, B=None):
         return 100.4
 
     # Egorov et al., arXiv:1204.1591 (2012)
-    if (B == magic_field_Rb87_1m1_2p1
+    if (B == magical_field_Rb87_1m1_2p1
             and (comp1.f, comp1.mf) == (1, -1) and (comp2.f, comp2.mf) == (2, 1)):
         return 98.006
-    if (B == magic_field_Rb87_1m1_2p1
+    if (B == magical_field_Rb87_1m1_2p1
             and (comp1.f, comp1.mf) == (2, 1) and (comp2.f, comp2.mf) == (2, 1)):
         return 95.44
 
@@ -94,7 +94,7 @@ def scattering_length(comp1, comp2, B=None):
 
     raise NotImplementedError(
         "Unknown B: " + str(B) +
-        " and components: " + repr(tuple(comp1, comp2)))
+        " and components: " + repr(tuple([comp1, comp2])))
 
 
 def loss_rate(*comps, **kwds):
@@ -115,11 +115,11 @@ def loss_rate(*comps, **kwds):
         return 5.4e-42
 
     # Egorov et al., arXiv:1204.1591 (2012)
-    if (B == magic_field_Rb87_1m1_2p1 and len(comps) == 2
+    if (B == magical_field_Rb87_1m1_2p1 and len(comps) == 2
             and (comps[0].f, comps[0].mf) == (1, -1)
             and (comps[1].f, comps[1].mf) == (2, 1)):
         return 1.51e-20
-    if (B == magic_field_Rb87_1m1_2p1 and len(comps) == 2
+    if (B == magical_field_Rb87_1m1_2p1 and len(comps) == 2
             and (comps[0].f, comps[0].mf) == (2, 1)
             and (comps[1].f, comps[1].mf) == (2, 1)):
         return 8.1e-20
