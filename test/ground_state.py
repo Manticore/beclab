@@ -16,22 +16,22 @@ if __name__ == '__main__':
     dtype = numpy.complex128
     shape = (8, 8, 64)
     freqs = (97.6, 97.6, 11.96)
-    comp = const.rb87_1_minus1
+    components = [const.rb87_1_minus1, const.rb87_2_1]
     N = 55000
 
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
     potential = HarmonicPotential(dtype, freqs)
-    scattering = const.scattering_matrix([comp])
-    system = System([comp], scattering, potential=potential)
+    scattering = const.scattering_matrix(components, B=const.magical_field_Rb87_1m1_2p1)
+    system = System(components, scattering, potential=potential)
     grid = UniformGrid(shape, box_for_tf(system, 0, N))
 
     gs_gen = ImaginaryTimeGroundState(thr, dtype, grid, system)
     ax_sampler = Density1DSampler(gs_gen.wfs_meta, theta=numpy.pi / 2)
 
     gs, result, info = gs_gen(
-        [N], E_diff=1e-7, E_conv=1e-9, sample_time=1e-4,
+        [N, 0], E_diff=1e-7, E_conv=1e-9, sample_time=1e-4,
         samplers=dict(axial_density=ax_sampler), return_info=True)
 
     fig = plt.figure()

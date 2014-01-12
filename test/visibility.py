@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 
 import reikna.cluda as cluda
 
-import beclab.constants as const
 from beclab import *
 
 
@@ -43,15 +42,14 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
         (gamma, (1, 0)),
         (gamma, (0, 1))]
 
-    # Create simulation objects
     rng = numpy.random.RandomState(1234)
-    potential = HarmonicPotential(state_dtype, components, freqs)
-    system = System(components, scattering, losses=losses, potential=potential)
+
+    # Create simulation objects
+    potential = HarmonicPotential(state_dtype, freqs)
+    system = System(components, scattering, potential=potential, losses=losses)
     grid = UniformGrid(lattice_size, box_for_tf(system, 0, N))
 
-    gs_gen = ImaginaryTimeGroundState(
-        thr, state_dtype, grid, system,
-        stepper_cls=RK46NLStepper)
+    gs_gen = ImaginaryTimeGroundState(thr, state_dtype, grid, system)
     integrator = Integrator(
         thr, state_dtype, grid, system,
         trajectories=trajectories, stepper_cls=stepper_cls,
@@ -67,10 +65,10 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
         psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
 
     # Prepare samplers
-    bs = BeamSplitter(psi, 0, 1, f_detuning=f_detuning, f_rabi=f_rabi)
-    n_sampler = PopulationSampler(wfs, beam_splitter=bs)
-    density_sampler = DensitySampler(wfs, beam_splitter=bs)
-    samplers = dict(N=n_sampler, axial_density=density_sampler)
+    bs = BeamSplitter(psi, f_detuning=f_detuning, f_rabi=f_rabi)
+    n_sampler = PopulationSampler(psi, beam_splitter=bs, theta=numpy.pi / 2)
+    ax_sampler = Density1DSampler(psi, beam_splitter=bs, theta=numpy.pi / 2)
+    samplers = dict(N=n_sampler, axial_density=ax_sampler)
 
     # Integrate
     bs(psi, 0, numpy.pi / 2)
@@ -153,14 +151,14 @@ if __name__ == '__main__':
 
     steppers = [
         CDIPStepper,
-        #CDStepper,
-        #RK4IPStepper,
-        #RK46NLStepper,
+        CDStepper,
+        RK4IPStepper,
+        RK46NLStepper,
     ]
 
     integrations = [
         'fixed',
-        #'adaptive',
+        'adaptive',
     ]
 
     for stepper_cls, integration in itertools.product(steppers, integrations):

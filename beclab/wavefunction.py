@@ -19,7 +19,7 @@ def trf_combine(psi_w_arr, psi_c_arr):
         Parameter('psi_c', Annotation(psi_c_arr, 'i')),
         Parameter('noise', Annotation(psi_w_arr, 'i'))],
         """
-        ${psi_c.ctype} psi_c = ${psi_c.load_idx}(${idxs[0]}, 0, ${', '.join(idxs[2:])});
+        ${psi_c.ctype} psi_c = ${psi_c.load_idx}(0, ${idxs[0]}, ${', '.join(idxs[2:])});
         ${noise.ctype} noise = ${noise.load_same};
         ${psi_w.store_same}(psi_c + noise);
         """)
@@ -60,29 +60,32 @@ class WignerCoherent(Computation):
         return plan
 
 
-def get_multiply(wfs):
+def get_multiply(wfs_meta):
 
-    real_dtype = dtypes.real_for(wfs.dtype)
+    real_dtype = dtypes.real_for(wfs_meta.dtype)
 
     return PureParallel(
         [
-            Parameter('output', Annotation(wfs.data, 'o')),
-            Parameter('input', Annotation(wfs.data, 'i'))]
-            + [Parameter('coeff' + str(i), Annotation(real_dtype)) for i in range(wfs.components)],
+            Parameter('output', Annotation(wfs_meta.data, 'o')),
+            Parameter('input', Annotation(wfs_meta.data, 'i'))]
+            + [Parameter('coeff' + str(i), Annotation(real_dtype))
+                for i in range(wfs_meta.components)],
         """
         <%
-            all_indices = ', '.join(idxs)
+            trajectory = idxs[0]
+            coords = ", ".join(idxs[1:])
         %>
         %for comp in range(components):
-        ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
-        ${output.store_idx}(${comp}, ${all_indices},
+        ${output.ctype} psi_${comp} = ${input.load_idx}(${trajectory}, ${comp}, ${coords});
+        ${output.store_idx}(
+            ${trajectory}, ${comp}, ${coords},
             ${mul}(psi_${comp}, ${locals()['coeff' + str(comp)]}));
         %endfor
         """,
-        guiding_array=wfs.shape[1:],
+        guiding_array=(wfs_meta.shape[0],) + wfs_meta.shape[1:],
         render_kwds=dict(
-            components=wfs.components,
-            mul=functions.mul(wfs.dtype, real_dtype)))
+            components=wfs_meta.components,
+            mul=functions.mul(wfs_meta.dtype, real_dtype)))
 
 
 class WavefunctionSetMetadata:
@@ -96,7 +99,7 @@ class WavefunctionSetMetadata:
         self.trajectories = trajectories
         self.dtype = dtype
         self.representation = representation
-        self.shape = (components, trajectories) + grid.shape
+        self.shape = (trajectories, components) + grid.shape
         self.data = Type(dtype, self.shape)
 
 

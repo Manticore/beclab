@@ -18,7 +18,7 @@ class _PopulationMeter(Computation):
         assert wfs_meta.representation in (REPR_CLASSICAL, REPR_WIGNER)
 
         real_dtype = dtypes.real_for(wfs_meta.dtype)
-        pop_arr = Type(real_dtype, (wfs_meta.components, wfs_meta.trajectories))
+        pop_arr = Type(real_dtype, (wfs_meta.trajectories, wfs_meta.components))
         Computation.__init__(self, [
             Parameter(
                 'populations', Annotation(pop_arr, 'o')),
@@ -67,7 +67,8 @@ def get_energy_trf(wfs_meta, system):
 
     return Transformation(
         [
-            Parameter('energy', Annotation(Type(real_dtype, wfs_meta.shape[1:]), 'o')),
+            Parameter('energy', Annotation(
+                Type(real_dtype, (wfs_meta.shape[0],) + wfs_meta.shape[2:]), 'o')),
             Parameter('data', Annotation(wfs_meta.data, 'i')),
             Parameter('kdata', Annotation(wfs_meta.data, 'i'))],
         """
@@ -75,20 +76,18 @@ def get_energy_trf(wfs_meta, system):
             s_ctype = dtypes.ctype(s_dtype)
             r_ctype = dtypes.ctype(r_dtype)
             r_const = lambda x: dtypes.c_constant(x, r_dtype)
+
+            trajectory = idxs[0]
+            coords = ", ".join(idxs[1:])
         %>
         %for comp in range(components):
-        ${kdata.ctype} data_${comp} = ${data.load_idx}(${comp}, ${', '.join(idxs)});
-        ${kdata.ctype} kdata_${comp} = ${kdata.load_idx}(${comp}, ${', '.join(idxs)});
+        ${kdata.ctype} data_${comp} = ${data.load_idx}(${trajectory}, ${comp}, ${coords});
+        ${kdata.ctype} kdata_${comp} = ${kdata.load_idx}(${trajectory}, ${comp}, ${coords});
         %endfor
 
         %if potential is not None:
         %for comp in range(components):
-        const ${r_ctype} V_${comp} = ${potential}${comp}(
-            %for dim in range(dimensions):
-            ${idxs[1 + dim]},
-            %endfor
-            0
-            );
+        const ${r_ctype} V_${comp} = ${potential}${comp}(${coords}, 0);
         %endfor
         %endif
 
@@ -163,7 +162,7 @@ class _EnergyMeter(Computation):
             ksquared_trf, ksquared_trf.input,
             output_prime=ksquared_trf.output, ksquared=ksquared_trf.ksquared)
 
-        real_arr = Type(real_dtype, wfs_meta.shape[1:])
+        real_arr = Type(real_dtype, (wfs_meta.shape[0],) + wfs_meta.shape[2:])
         self._reduce = Reduce(
             real_arr, predicate_sum(real_dtype),
             axes=list(range(1, len(wfs_meta.shape) - 1)))

@@ -142,18 +142,18 @@ class ThomasFermiGroundState:
             N = Ns[i]
 
             if N == 0:
-                psi_TF[i] = 0
+                psi_TF[0, i] = 0
                 continue
 
             mu = const.mu_tf_3d(
                 self.system.potential.trap_frequencies, N,
                 component.m, self.system.interactions[i, i])
 
-            psi_TF[i] = numpy.sqrt((mu - V[i]).clip(0) / self.system.interactions[i, i])
+            psi_TF[0, i] = numpy.sqrt((mu - V[i]).clip(0) / self.system.interactions[i, i])
 
             # renormalize to account for coarse grids
             N0 = (numpy.abs(psi_TF[i]) ** 2).sum() * self.grid.dV
-            psi_TF[i] *= numpy.sqrt(N / N0)
+            psi_TF[0, i] *= numpy.sqrt(N / N0)
 
         wfs.fill_with(psi_TF)
         return wfs
@@ -217,28 +217,39 @@ class ImaginaryTimeGroundState:
 
 class Integrator:
 
-    def __init__(self, thr, dtype, system,
+    def __init__(self, thr, dtype, grid, system,
             wigner=False, seed=None, stepper_cls=RK46NLStepper, trajectories=1):
 
+        if wigner:
+            corrections = -(
+                numpy.ones_like(system.interactions) / 2 +
+                numpy.eye(system.interactions.shape[0]) / 2
+                ) * grid.modes / grid.V
+        else:
+            corrections = None
+
         drift = get_drift(
-            dtype, system.grid, system.components,
-            system.scattering, system.losses, wigner=wigner, potential=system.potential.module)
+            dtype, grid.dimensions, len(system.components),
+            interactions=system.interactions,
+            corrections=corrections,
+            potential=system.potential.get_module(dtype, grid, system.components),
+            unitary_coefficient=-1j / const.HBAR)
         if wigner:
             diffusion = get_diffusion(
-                dtype, system.grid, len(system.components), system.losses)
+                dtype, grid, len(system.components), system.losses)
         else:
             diffusion = None
 
         stepper = stepper_cls(
-            system.grid.shape, system.grid.box, drift,
-            kinetic_coeff=system.kinetic_coeff,
+            grid.shape, grid.box, drift,
+            kinetic_coeff=-1j / const.HBAR * system.kinetic_coeff,
             trajectories=trajectories,
             diffusion=diffusion)
 
         if wigner:
-            wiener = Wiener(stepper.parameter.dW, 1. / system.grid.dV, seed=seed)
+            wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=seed)
 
-        self._integrator = Integrator(
+        self._integrator = integrator.Integrator(
             thr, stepper,
             wiener=wiener if wigner else None)
 

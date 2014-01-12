@@ -15,11 +15,12 @@ def get_splitter(state_arr, comp1, comp2):
             Parameter('phi', Annotation(Type(real_dtype)))],
         """
         <%
-            all_indices = ', '.join(idxs)
+            trajectory = idxs[0]
+            coords = ", ".join(idxs[1:])
             r_ctype = dtypes.ctype(dtypes.real_for(output.dtype))
         %>
         %for comp in range(components):
-        const ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
+        const ${output.ctype} psi_${comp} = ${input.load_idx}(${trajectory}, ${comp}, ${coords});
         %endfor
 
         ${r_ctype} sin_half_theta = sin(${theta} / 2);
@@ -40,17 +41,17 @@ def get_splitter(state_arr, comp1, comp2):
 
         %for comp in range(components):
         %if comp in (comp1, comp2):
-        ${output.store_idx}(${comp}, ${all_indices}, psi_${comp}_new);
+        ${output.store_idx}(${trajectory}, ${comp}, ${coords}, psi_${comp}_new);
         %else:
-        ${output.store_idx}(${comp}, ${all_indices}, psi_${comp});
+        ${output.store_idx}(${trajectory}, ${comp}, ${coords}, psi_${comp});
         %endif
         %endfor
         """,
-        guiding_array=state_arr.shape[1:],
+        guiding_array=(state_arr.shape[0],) + state_arr.shape[2:],
         render_kwds=dict(
             comp1=comp1,
             comp2=comp2,
-            components=state_arr.shape[0],
+            components=state_arr.shape[1],
             polar_unit=functions.polar_unit(real_dtype),
             mul_ss=functions.mul(state_arr.dtype, state_arr.dtype),
             mul_sr=functions.mul(state_arr.dtype, real_dtype)))
@@ -78,11 +79,14 @@ class BeamSplitterMatrix(Computation):
 
 class BeamSplitter:
 
-    def __init__(self, wfs, comp1_num, comp2_num, starting_phase=0, f_detuning=0, f_rabi=0):
+    def __init__(self, wfs_meta, comp1_num=0, comp2_num=1,
+            starting_phase=0, f_detuning=0, f_rabi=0):
+
         self._starting_phase = starting_phase
         self._detuning = 2 * numpy.pi * f_detuning
         self._f_rabi = f_rabi
-        self._splitter = BeamSplitterMatrix(wfs.data, comp1_num, comp2_num).compile(wfs.thr)
+        self._splitter = BeamSplitterMatrix(
+            wfs_meta.data, comp1_num, comp2_num).compile(wfs_meta.thread)
 
     def __call__(self, wfs, t, theta):
         phi = t * self._detuning + self._starting_phase

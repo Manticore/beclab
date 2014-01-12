@@ -37,9 +37,10 @@ class NormalizationFilter:
 
     def __init__(self, wfs_meta, target_Ns):
         self._population = PopulationMeter(wfs_meta)
-        self._target_Ns = numpy.array(target_Ns)
+        self._target_Ns = target_Ns
         self._multiply = get_multiply(wfs_meta).compile(wfs_meta.thread)
 
     def __call__(self, wfs_data, t):
-        Ns = self._population(wfs_data).mean(1)
-        self._multiply(wfs_data, wfs_data, *(numpy.sqrt(self._target_Ns / Ns)))
+        Ns = self._population(wfs_data).mean(0)
+        coeffs = [target_N / N if N > 0 else 0 for target_N, N in zip(self._target_Ns, Ns)]
+        self._multiply(wfs_data, wfs_data, *coeffs)

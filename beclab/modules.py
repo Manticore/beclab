@@ -64,7 +64,7 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
                     %>
                     %if g != 0:
                     + ${r_const(g)}
-                        * (${norm}(psi_${other_comp}) - ${r_const(correction)})
+                        * (${norm}(psi_${other_comp}) + (${r_const(correction)}))
                     %endif
                     %endfor
                     ;
@@ -142,6 +142,10 @@ def get_diffusion(state_dtype, dimensions, components, losses):
     # and cannot be instantiated inside a template.
     real_dtype = dtypes.real_for(state_dtype)
     muls = []
+
+    if losses is None:
+        losses = []
+
     for _, ls in losses:
         if sum(ls) > 1:
             muls.append(
