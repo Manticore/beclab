@@ -157,7 +157,7 @@ def get_diffusion(state_dtype, gamma):
 class PsiSampler(Sampler):
 
     def __init__(self):
-        Sampler.__init__(self, no_average=True)
+        Sampler.__init__(self, no_mean=True, no_stderr=True)
 
     def __call__(self, psi, t):
         return psi.get()

@@ -79,7 +79,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi, 0, interval / samples, t_end=interval,
-            convergence=dict(N=1e-4), samplers=samplers)
+            weak_convergence=dict(N=1e-4), samplers=samplers)
 
     N_mean = result['N']
     N_err = result['N_stderr']

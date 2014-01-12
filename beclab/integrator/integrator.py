@@ -59,9 +59,10 @@ class IntegrationError(Exception):
 
 class Sampler:
 
-    def __init__(self, no_average=False, no_stderr=False):
-        self.no_average = no_average
+    def __init__(self, no_mean=False, no_stderr=False, no_values=False):
+        self.no_mean = no_mean
         self.no_stderr = no_stderr
+        self.no_values = no_values
 
 
 def _transpose_results(results):
@@ -90,10 +91,49 @@ class Timings:
 
 class IntegrationInfo:
 
-    def __init__(self, timings, errors, steps):
-        self.errors = errors
+    def __init__(self, timings, weak_errors, strong_errors, steps):
+        self.weak_errors = weak_errors
+        self.strong_errors = strong_errors
         self.timings = timings
         self.steps = steps
+
+
+def _calculate_errors(sample_normal, sample_double, strong_keys, weak_keys):
+
+    # FIXME: performance can be improved by calculating norms on GPU
+
+    weak_errors = {}
+    strong_errors = {}
+
+    for key in weak_keys:
+        mean_normal = sample_normal[key]['mean']
+        mean_double = sample_double[key]['mean']
+        error_norm = numpy.linalg.norm(mean_normal)
+        if error_norm > 0:
+            error = numpy.linalg.norm(mean_normal - mean_double) / error_norm
+        else:
+            error = 0
+        weak_errors[key] = error
+
+    for key in strong_keys:
+        values_normal = sample_normal[key]['values']
+        values_double = sample_double[key]['values']
+
+        errors = []
+        for i in _range(values_normal.shape[0]):
+            value_normal = values_normal[i]
+            value_double = values_double[i]
+
+            error_norm = numpy.linalg.norm(value_normal)
+            if error_norm > 0:
+                error = numpy.linalg.norm(value_normal - value_double) / error_norm
+            else:
+                error = 0
+            errors.append(error)
+
+        strong_errors[key] = max(errors)
+
+    return strong_errors, weak_errors
 
 
 class Integrator:
@@ -131,13 +171,13 @@ class Integrator:
                 sample = e.args[0]
                 stop_integration = True
 
-            if sampler.no_average:
-                sample_dict[key] = sample
-            elif sampler.no_stderr:
-                sample_dict[key] = sample.mean(0)
-            else:
-                sample_dict[key] = sample.mean(0)
-                sample_dict[key + '_stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
+            sample_dict[key] = dict(trajectories=sample.shape[0])
+            if not sampler.no_values:
+                sample_dict[key]['values'] = sample
+            if not sampler.no_mean:
+                sample_dict[key]['mean'] = sample.mean(0)
+            if not sampler.no_stderr:
+                sample_dict[key]['stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
 
         t_samplers = time.time() - t1
         return sample_dict, stop_integration, t_samplers
@@ -211,17 +251,36 @@ class Integrator:
 
         return results, t_total - t_samplers, t_samplers
 
+    def _check_convergence_keys(samplers, strong_convergence, weak_convergence):
+        weak_keys = set(weak_convergence if weak_convergence is not None else [])
+        strong_keys = set(weak_convergence if weak_convergence is not None else [])
+
+        samplers_with_mean = set([key for key, sampler in samplers.items() if not sampler.no_mean])
+        samplers_with_values = set([key for key, sampler in samplers.items() if not sampler.no_values])
+
+        if strong_keys != samplers_with_values:
+            raise ValueError(
+                "Samplers without all values cannot be used to estimate strong convergence:",
+                ", ".join(strong_keys - samplers_with_values))
+
+        if weak_keys != samplers_with_mean:
+            raise ValueError(
+                "Samplers without mean values cannot be used to estimate weak convergence:",
+                ", ".join(weak_keys - samplers_with_mean))
+
+        return strong_keys, weak_keys
+
     def fixed_step(self, data_dev, t_start, t_end, steps, samples=1,
-            convergence=None, samplers=None, filters=None):
+            weak_convergence=None, strong_convergence=None, samplers=None, filters=None):
 
         if samplers is None:
             samplers = []
         if filters is None:
             filters = []
-        if convergence is None:
-            convergence = []
 
-        convergence_samplers = {key:samplers[key] for key in convergence}
+        strong_keys, weak_keys = self._check_convergence_keys(
+            samplers, strong_convergence, weak_convergence)
+        convergence_samplers = {key:samplers[key] for key in weak_keys + strong_keys}
 
         assert steps % samples == 0
         assert steps % 2 == 0
@@ -248,20 +307,11 @@ class Integrator:
             samples=samples, samplers=samplers, verbose=self.verbose, filters=filters)
         results = [sample_start] + results
 
-        # FIXME: need to cache Norm computations and perform this on device
-        # calculate result errors
-        errors = {}
-        for key in convergence:
-            res_double = results_double[-1][key]
-            res = results[-1][key]
-            error_norm = numpy.linalg.norm(res)
-            if error_norm > 0:
-                error = numpy.linalg.norm(res_double - res) / error_norm
-            else:
-                error = 0
-            errors[key] = error
-            if self.verbose:
-                print("Error in " + key + ":", errors[key])
+        strong_errors, weak_errors = _calculate_errors(
+            results[-1], results_double[-1], strong_keys, weak_keys)
+        if self.verbose:
+            print("Strong errors:", repr(weak_errors))
+            print("Weak errors:", repr(weak_errors))
 
         timings = Timings(
             normal=t_normal, double=t_double,
@@ -274,7 +324,7 @@ class Integrator:
             (t_start, t_end, steps // samples)
             for t_start, t_end in zip(ts_start, ts_end)]
 
-        info = IntegrationInfo(timings, errors, steps_used)
+        info = IntegrationInfo(timings, strong_errors, weak_errors, steps_used)
 
         return _transpose_results(results), info
 
@@ -283,7 +333,8 @@ class Integrator:
             starting_steps=2,
             t_end=None,
             samplers=None,
-            convergence=None,
+            strong_convergence=None,
+            weak_convergence=None,
             filters=None,
             display=None,
             steps_limit=10000):
@@ -300,10 +351,14 @@ class Integrator:
             samplers = []
         if filters is None:
             filters = []
-        if convergence is None:
+
+        strong_keys, weak_keys = self._check_convergence_keys(
+            samplers, strong_convergence.keys(), weak_convergence.keys())
+
+        if len(strong_keys + weak_keys) > 0:
             raise ValueError("At least one convergence criterion must be specified")
 
-        convergence_samplers = {key:samplers[key] for key in convergence}
+        convergence_samplers = {key:samplers[key] for key in weak_keys + strong_keys}
 
         if self.verbose:
             if display is not None:
@@ -359,14 +414,12 @@ class Integrator:
                 normal=t_normal, double=t_double,
                 samplers=t_samplers_normal + t_samplers_double)
 
-            converged = True
-            for key in convergence:
-                res = sample_normal[key]
-                res_double = sample_double[key]
-                error = numpy.linalg.norm(res_double - res) / numpy.linalg.norm(res)
-                if error > convergence[key]:
-                    converged = False
-                    break
+            strong_errors, weak_errors = _calculate_errors(
+                sample_normal, sample_double, strong_keys, weak_keys)
+
+            converged = (
+                any(strong_errors[key] > strong_convergence[key] for key in strong_keys) or
+                any(weak_errors[key] > weak_convergence[key] for key in weak_keys))
 
             if converged:
                 self.thr.copy_array(data_try, dest=data_dev)
@@ -399,20 +452,6 @@ class Integrator:
         if self.verbose:
             pbar.finish()
 
-        # calculate result errors
-        errors = {}
-        for key in convergence:
-            res_double = sample_double[key]
-            res = sample_normal[key]
-            error_norm = numpy.linalg.norm(res)
-            if error_norm > 0:
-                error = numpy.linalg.norm(res_double - res) / error_norm
-            else:
-                error = 0
-            errors[key] = error
-            if self.verbose:
-                print("Error in " + key + ":", errors[key] * (t - t_start) / t_sample)
-
-        info = IntegrationInfo(timings, errors, steps_used)
+        info = IntegrationInfo(timings, {}, {}, steps_used)
 
         return _transpose_results(results), info

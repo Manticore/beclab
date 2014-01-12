@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.plot(grid.xs[2] * 1e6, result['axial_density'][-1,0])
+    s.plot(grid.xs[2] * 1e6, result['axial_density']['mean'][-1,0])
     fig.savefig('ground_state_final.pdf')
 
     fig = plt.figure()

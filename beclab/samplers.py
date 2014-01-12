@@ -8,7 +8,7 @@ from beclab.meters import EnergyMeter
 class PsiSampler(Sampler):
 
     def __init__(self):
-        Sampler.__init__(self, no_average=True)
+        Sampler.__init__(self, no_mean=True, no_stderr=True)
 
     def __call__(self, wfs_data, t):
         return wfs_data.get()
@@ -99,7 +99,7 @@ class Density1DSampler(Sampler):
 class EnergySampler(Sampler):
 
     def __init__(self, wfs_meta, system):
-        Sampler.__init__(self, no_stderr=True)
+        Sampler.__init__(self)
         self._energy = EnergyMeter(wfs_meta, system)
 
     def __call__(self, wfs_data, t):
@@ -109,7 +109,7 @@ class EnergySampler(Sampler):
 class StoppingEnergySampler(Sampler):
 
     def __init__(self, wfs, system, limit=1e-6):
-        Sampler.__init__(self, no_stderr=True)
+        Sampler.__init__(self)
         self._energy = EnergyMeter(wfs, system)
         self._previous_E = None
         self._limit = limit

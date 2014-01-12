@@ -205,7 +205,7 @@ class ImaginaryTimeGroundState:
             display=['time', 'E'],
             samplers=prop_samplers,
             filters=[psi_filter],
-            convergence=dict(E_conv=E_conv))
+            weak_convergence=dict(E_conv=E_conv))
 
         del result['E_conv']
 
