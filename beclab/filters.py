@@ -19,15 +19,17 @@ def get_multiply(wfs_meta):
                 for i in range(wfs_meta.components)],
         """
         <%
-            all_indices = ', '.join(idxs)
+            trajectory = idxs[0]
+            coords = ', '.join(idxs[1:])
         %>
         %for comp in range(components):
-        ${output.ctype} psi_${comp} = ${input.load_idx}(${comp}, ${all_indices});
-        ${output.store_idx}(${comp}, ${all_indices},
+        ${output.ctype} psi_${comp} = ${input.load_idx}(${trajectory}, ${comp}, ${coords});
+        ${output.store_idx}(
+            ${trajectory}, ${comp}, ${coords},
             ${mul}(psi_${comp}, ${locals()['coeff' + str(comp)]}));
         %endfor
         """,
-        guiding_array=wfs_meta.shape[1:],
+        guiding_array=(wfs_meta.shape[0],) + wfs_meta.shape[2:],
         render_kwds=dict(
             components=wfs_meta.components,
             mul=functions.mul(wfs_meta.dtype, real_dtype)))
