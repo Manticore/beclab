@@ -62,7 +62,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     # Initial noise
     if wigner:
-        psi = psi.to_wigner_coherent(paths, seed=rng.randint(0, 2**32-1))
+        psi = psi.to_wigner_coherent(trajectories, seed=rng.randint(0, 2**32-1))
 
     # Prepare samplers
     bs = BeamSplitter(psi, f_detuning=f_detuning, f_rabi=f_rabi)
@@ -75,16 +75,15 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     if integration == 'fixed':
         result, info = integrator.fixed_step(
             psi, 0, interval, steps, samples=samples,
-            samplers=samplers, convergence=['N'])
+            samplers=samplers, weak_convergence=['N'])
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi, 0, interval / samples, t_end=interval,
             weak_convergence=dict(N=1e-4), samplers=samplers)
 
-    N_mean = result['N']
-    N_err = result['N_stderr']
-    density = result['axial_density']
-    N_exact = N * numpy.exp(-gamma * result['time'] * 2)
+    N_t, N_mean, N_err = result['N']['time'], result['N']['mean'], result['N']['stderr']
+    density = result['axial_density']['mean']
+    N_exact = N * numpy.exp(-gamma * N_t * 2)
 
     suffix = (
         ('_wigner' if wigner else '') +
@@ -118,13 +117,13 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     # Plot population
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.plot(result['time'], N_mean[:,0], 'r-')
-    s.plot(result['time'], N_mean[:,1], 'g-')
-    s.plot(result['time'], N_mean.sum(1), 'b-')
+    s.plot(N_t, N_mean[:,0], 'r-')
+    s.plot(N_t, N_mean[:,1], 'g-')
+    s.plot(N_t, N_mean.sum(1), 'b-')
     if wigner:
-        s.plot(result['time'], N_mean.sum(1) + N_err.sum(1), 'b--')
-        s.plot(result['time'], N_mean.sum(1) - N_err.sum(1), 'b--')
-    s.plot(result['time'], N_exact, 'k--')
+        s.plot(N_t, N_mean.sum(1) + N_err.sum(1), 'b--')
+        s.plot(N_t, N_mean.sum(1) - N_err.sum(1), 'b--')
+    s.plot(N_t, N_exact, 'k--')
     s.set_ylim(0, N)
     s.set_xlabel('$t$')
     s.set_ylabel('$N$')
