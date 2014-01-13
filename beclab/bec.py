@@ -233,6 +233,7 @@ class Integrator:
             interactions=system.interactions,
             corrections=corrections,
             potential=system.potential.get_module(dtype, grid, system.components),
+            losses=system.losses,
             unitary_coefficient=-1j / const.HBAR)
         if wigner:
             diffusion = get_diffusion(
