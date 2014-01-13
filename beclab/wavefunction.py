@@ -135,7 +135,7 @@ class WavefunctionSet(WavefunctionSetMetadata):
     def to_trajectories(self, trajectories):
         assert self.trajectories == 1
         wf = WavefunctionSet(
-            self.thread, self.grid, self.dtype,
+            self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
             representation=self.representation)
         # FIXME: need to copy on the device
@@ -147,7 +147,7 @@ class WavefunctionSet(WavefunctionSetMetadata):
         assert self.representation == REPR_CLASSICAL
         assert self.trajectories == 1
         wf = WavefunctionSet(
-            self.thread, self.grid, self.dtype,
+            self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
             representation=REPR_WIGNER)
         wcoh = WignerCoherent(self.grid, wf.data, self.data).compile(self.thread)
@@ -157,11 +157,10 @@ class WavefunctionSet(WavefunctionSetMetadata):
     def to_positivep_coherent(self, trajectories):
         assert self.trajectories == 1
         wf = WavefunctionSet(
-            self.thread, self.grid, self.dtype,
+            self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
             representation=REPR_POSITIVE_P)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)
         wf.fill_with(self.data.get())
         return wf
-
