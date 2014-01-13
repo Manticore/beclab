@@ -4,7 +4,7 @@ from reikna.cluda import Module
 
 import beclab.constants as const
 import beclab.integrator as integrator
-from beclab.integrator import RK46NLStepper
+from beclab.integrator import RK46NLStepper, Wiener
 from beclab.modules import get_drift, get_diffusion
 from beclab.wavefunction import WavefunctionSet, WavefunctionSetMetadata
 from beclab.samplers import EnergySampler, StoppingEnergySampler
@@ -152,7 +152,7 @@ class ThomasFermiGroundState:
             psi_TF[0, i] = numpy.sqrt((mu - V[i]).clip(0) / self.system.interactions[i, i])
 
             # renormalize to account for coarse grids
-            N0 = (numpy.abs(psi_TF[i]) ** 2).sum() * self.grid.dV
+            N0 = (numpy.abs(psi_TF[0, i]) ** 2).sum() * self.grid.dV
             psi_TF[0, i] *= numpy.sqrt(N / N0)
 
         wfs.fill_with(psi_TF)
@@ -236,7 +236,7 @@ class Integrator:
             unitary_coefficient=-1j / const.HBAR)
         if wigner:
             diffusion = get_diffusion(
-                dtype, grid, len(system.components), system.losses)
+                dtype, grid.dimensions, len(system.components), losses=system.losses)
         else:
             diffusion = None
 
