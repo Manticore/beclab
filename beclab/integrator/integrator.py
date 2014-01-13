@@ -38,7 +38,7 @@ class StatefulLabel(Widget):
         if self.values is None:
             self.values = {}
         for key in self.keys:
-            self.values[key] = sample_dict[key]
+            self.values[key] = sample_dict[key]['mean']
 
     def update(self, pbar):
         if self.values is not None:

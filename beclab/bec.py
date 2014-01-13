@@ -202,7 +202,7 @@ class ImaginaryTimeGroundState:
 
         result, info = self.integrator.adaptive_step(
             psi.data, 0, sample_time,
-            display=['time', 'E'],
+            display=['E'],
             samplers=prop_samplers,
             filters=[psi_filter],
             weak_convergence=dict(E_conv=E_conv))

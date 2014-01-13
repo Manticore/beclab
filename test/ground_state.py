@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.imshow(result['axial_density'][:,0,:].T)
+    s.imshow(result['axial_density']['mean'][:,0,:].T)
     fig.savefig('ground_state_evolution.pdf')
 
     # Plot used steps
