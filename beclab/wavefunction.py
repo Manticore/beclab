@@ -19,7 +19,7 @@ def trf_combine(psi_w_arr, psi_c_arr):
         Parameter('psi_c', Annotation(psi_c_arr, 'i')),
         Parameter('noise', Annotation(psi_w_arr, 'i'))],
         """
-        ${psi_c.ctype} psi_c = ${psi_c.load_idx}(0, ${idxs[0]}, ${', '.join(idxs[2:])});
+        ${psi_c.ctype} psi_c = ${psi_c.load_idx}(0, ${', '.join(idxs[1:])});
         ${noise.ctype} noise = ${noise.load_same};
         ${psi_w.store_same}(psi_c + noise);
         """)
