@@ -136,7 +136,7 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
         state_dtype, components=interactions.shape[0])
 
 
-def get_diffusion(state_dtype, dimensions, components, losses):
+def get_diffusion(state_dtype, dimensions, components, losses=None):
 
     # Preparing multi-argument multiplications here, since they are modules
     # and cannot be instantiated inside a template.
