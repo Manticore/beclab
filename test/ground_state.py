@@ -22,7 +22,7 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
-    potential = HarmonicPotential(dtype, freqs)
+    potential = HarmonicPotential(freqs)
     scattering = const.scattering_matrix(components, B=const.magical_field_Rb87_1m1_2p1)
     system = System(components, scattering, potential=potential)
     grid = UniformGrid(shape, box_for_tf(system, 0, N))

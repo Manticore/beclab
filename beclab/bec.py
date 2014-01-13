@@ -13,7 +13,7 @@ from beclab.filters import NormalizationFilter
 
 class HarmonicPotential:
 
-    def __init__(self, dtype, freqs, displacements=None):
+    def __init__(self, freqs, displacements=None):
         if not isinstance(freqs, tuple):
             raise NotImplementedError
 
