@@ -100,7 +100,11 @@ class System:
         self.potential = potential
         self.components = components
         self.interactions = interactions
-        self.losses = losses
+
+        if losses is None or len(losses) == 0:
+            self.losses = None
+        else:
+            self.losses = losses
 
         self.kinetic_coeff = -const.HBAR ** 2 / (2 * components[0].m)
 
@@ -229,6 +233,8 @@ class Integrator:
         else:
             corrections = None
 
+        noises = (wigner and system.losses is not None)
+
         drift = get_drift(
             dtype, grid.dimensions, len(system.components),
             interactions=system.interactions,
@@ -236,7 +242,8 @@ class Integrator:
             potential=system.potential.get_module(dtype, grid, system.components),
             losses=system.losses,
             unitary_coefficient=-1j / const.HBAR)
-        if wigner:
+
+        if noises:
             diffusion = get_diffusion(
                 dtype, grid.dimensions, len(system.components), losses=system.losses)
         else:
@@ -248,12 +255,14 @@ class Integrator:
             trajectories=trajectories,
             diffusion=diffusion)
 
-        if wigner:
+        if noises:
             wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=seed)
+        else:
+            wiener = None
 
         self._integrator = integrator.Integrator(
             thr, stepper,
-            wiener=wiener if wigner else None,
+            wiener=wiener,
             profile=profile)
 
     def fixed_step(self, wfs, *args, **kwds):
