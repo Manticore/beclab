@@ -80,7 +80,8 @@ def scattering_length(comp1, comp2, B=None):
             and (comp1.f, comp1.mf) == (2, 1) and (comp2.f, comp2.mf) == (2, 1)):
         return 95.44
 
-    if (comp1.f, comp1.mf) == (1, 1) and (comp2.f, comp2.mf) == (2, -1) and abs(B - B0) < 1:
+    if ((comp1.f, comp1.mf) == (1, 1) and (comp2.f, comp2.mf) == (2, -1) and
+            abs(B - resonance_Rb_9_1.value) < 1):
         a12, _ = feshbach_interaction(comp1.m, resonance_Rb_9_1)
         return a12
 
@@ -126,7 +127,7 @@ def loss_rate(*comps, **kwds):
 
     # Kaufman et al., PRA 80 050701 (2009)
     if len(comps) == 2 and (comps[0].f, comps[0].mf) == (1, 1) and \
-            (comps[1].f, comps[1].mf) == (2, -1) and abs(B - B0) < 1:
+            (comps[1].f, comps[1].mf) == (2, -1) and abs(B - resonance_Rb_9_1.value) < 1:
         _, gamma12 = feshbach_interaction(comps[0].m, resonance_Rb_9_1)
         return gamma12
 
