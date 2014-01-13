@@ -1,9 +1,3 @@
-Features
-========
-
-- Ground state calculation
-
-
 Core
 ====
 
