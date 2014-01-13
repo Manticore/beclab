@@ -45,7 +45,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     rng = numpy.random.RandomState(1234)
 
     # Create simulation objects
-    potential = HarmonicPotential(state_dtype, freqs)
+    potential = HarmonicPotential(freqs)
     system = System(components, scattering, potential=potential, losses=losses)
     grid = UniformGrid(lattice_size, box_for_tf(system, 0, N))
 
