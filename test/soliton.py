@@ -274,21 +274,19 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     if integration == 'fixed':
         result, info = integrator.fixed_step(
             psi_gpu, 0, interval, steps, samples=samples,
-            samplers=samplers, convergence=['N', 'psi'])
+            samplers=samplers, weak_convergence=['N'], strong_convergence=['psi'])
     elif integration == 'adaptive':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples, t_end=interval,
-            samplers=samplers, convergence=dict(N=1e-6))
+            samplers=samplers, weak_convergence=dict(N=1e-6))
     elif integration == 'adaptive-endless':
         result, info = integrator.adaptive_step(
             psi_gpu, 0, interval / samples,
-            samplers=samplers, convergence=dict(N=1e-6))
+            samplers=samplers, weak_convergence=dict(N=1e-6))
 
-    times = result['time']
-    N_mean = result['N']
-    N_err = result['N_stderr']
-    density = result['density']
-    N_exact = N0 * numpy.exp(-gamma * result['time'] * 2)
+    N_t, N_mean, N_err = result['N']['time'], result['N']['mean'], result['N']['stderr']
+    density = result['density']['mean']
+    N_exact = N0 * numpy.exp(-gamma * N_t * 2)
 
     suffix = (
         ('_wigner' if wigner else '') +
@@ -309,11 +307,11 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     # Plot population
     fig = plt.figure()
     s = fig.add_subplot(111)
-    s.plot(times, N_mean, 'b-')
+    s.plot(N_t, N_mean, 'b-')
     if wigner:
-        s.plot(times, N_mean + N_err, 'b--')
-        s.plot(times, N_mean - N_err, 'b--')
-    s.plot(result['time'], N_exact, 'k--')
+        s.plot(N_t, N_mean + N_err, 'b--')
+        s.plot(N_t, N_mean - N_err, 'b--')
+    s.plot(N_t, N_exact, 'k--')
     s.set_ylim(-N0 * 0.1, N0 * 1.1)
     s.set_xlabel('$t$')
     s.set_ylabel('$N$')
@@ -322,7 +320,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
 
     # Compare with the analytical solution
     if not wigner and no_losses:
-        psi = result['psi']
+        psi = result['psi']['values']
         tt = numpy.linspace(0, interval, samples + 1, endpoint=True).reshape(samples + 1, 1, 1, 1)
         xx = x.reshape(1, 1, 1, x.size)
         psi_exact = numpy.sqrt(n0) / numpy.cosh(xx) * numpy.exp(1j * tt)

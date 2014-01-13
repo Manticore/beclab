@@ -12,25 +12,29 @@ _range = xrange if sys.version_info[0] < 3 else range
 
 class StatefulLabel(Widget):
 
-    def __init__(self, display):
+    def __init__(self, display=None, time_formatter='.3f'):
         keys = []
         formatters = []
-        for key in display:
-            if isinstance(key, tuple):
-                key, formatter = key
-                formatter = "{" + key + ":" + formatter + "}"
-            else:
-                formatter = "{" + key + "}"
-            keys.append(key)
-            formatters.append(formatter)
+        if display is not None:
+            for key in display:
+                if isinstance(key, tuple):
+                    key, formatter = key
+                    formatter = "{" + key + ":" + formatter + "}"
+                else:
+                    formatter = "{" + key + "}"
+                keys.append(key)
+                formatters.append(formatter)
 
         format_str = ", ".join(key + ": " + formatter for key, formatter in zip(keys, formatters))
 
         self.keys = keys
         self.format_str = format_str
+        self.time_format_str = (
+            "time: {time:" + time_formatter + "}" + (", " if display is not None else ""))
         self.values = None
 
-    def set(self, sample_dict):
+    def set(self, t, sample_dict):
+        self.time = t
         if self.values is None:
             self.values = {}
         for key in self.keys:
@@ -38,7 +42,9 @@ class StatefulLabel(Widget):
 
     def update(self, pbar):
         if self.values is not None:
-            return self.format_str.format(**self.values)
+            return (
+                self.time_format_str.format(time=self.time) +
+                self.format_str.format(**self.values))
         else:
             return "(not initialized)"
 
@@ -66,12 +72,25 @@ class Sampler:
 
 
 def _transpose_results(results):
-    new_results = {key:[] for key in results[0].keys()}
+    new_results = {}
+    for key in results[0]:
+        new_results[key] = dict(trajectories=results[0][key]['trajectories'])
+        for val_key in results[0][key]:
+            if val_key != 'trajectories':
+                new_results[key][val_key] = []
+
     for res in results:
         for key in res:
-            new_results[key].append(res[key])
+            for val_key in res[key]:
+                if val_key != 'trajectories':
+                    new_results[key][val_key].append(res[key][val_key])
 
-    return {key:numpy.array(val) for key, val in new_results.items()}
+    for key in new_results:
+        for val_key in new_results[key]:
+            if val_key != 'trajectories':
+                new_results[key][val_key] = numpy.array(new_results[key][val_key])
+
+    return new_results
 
 
 class Timings:
@@ -160,7 +179,7 @@ class Integrator:
         if self.profile:
             self.thr.synchronize()
         t1 = time.time()
-        sample_dict = dict(time=t)
+        sample_dict = {}
         stop_integration = False
 
         for key, sampler in samplers.items():
@@ -171,7 +190,7 @@ class Integrator:
                 sample = e.args[0]
                 stop_integration = True
 
-            sample_dict[key] = dict(trajectories=sample.shape[0])
+            sample_dict[key] = dict(trajectories=sample.shape[0], time=t)
             if not sampler.no_values:
                 sample_dict[key]['values'] = sample
             if not sampler.no_mean:
@@ -251,21 +270,21 @@ class Integrator:
 
         return results, t_total - t_samplers, t_samplers
 
-    def _check_convergence_keys(samplers, strong_convergence, weak_convergence):
+    def _check_convergence_keys(self, samplers, strong_convergence, weak_convergence):
         weak_keys = set(weak_convergence if weak_convergence is not None else [])
-        strong_keys = set(weak_convergence if weak_convergence is not None else [])
+        strong_keys = set(strong_convergence if strong_convergence is not None else [])
 
         samplers_with_mean = set([key for key, sampler in samplers.items() if not sampler.no_mean])
         samplers_with_values = set([key for key, sampler in samplers.items() if not sampler.no_values])
 
-        if strong_keys != samplers_with_values:
+        if not strong_keys.issubset(samplers_with_values):
             raise ValueError(
-                "Samplers without all values cannot be used to estimate strong convergence:",
+                "Samplers without all values cannot be used to estimate strong convergence:" +
                 ", ".join(strong_keys - samplers_with_values))
 
-        if weak_keys != samplers_with_mean:
+        if not weak_keys.issubset(samplers_with_mean):
             raise ValueError(
-                "Samplers without mean values cannot be used to estimate weak convergence:",
+                "Samplers without mean values cannot be used to estimate weak convergence:" +
                 ", ".join(weak_keys - samplers_with_mean))
 
         return strong_keys, weak_keys
@@ -280,7 +299,7 @@ class Integrator:
 
         strong_keys, weak_keys = self._check_convergence_keys(
             samplers, strong_convergence, weak_convergence)
-        convergence_samplers = {key:samplers[key] for key in weak_keys + strong_keys}
+        convergence_samplers = {key:samplers[key] for key in weak_keys | strong_keys}
 
         assert steps % samples == 0
         assert steps % 2 == 0
@@ -310,8 +329,10 @@ class Integrator:
         strong_errors, weak_errors = _calculate_errors(
             results[-1], results_double[-1], strong_keys, weak_keys)
         if self.verbose:
-            print("Strong errors:", repr(weak_errors))
-            print("Weak errors:", repr(weak_errors))
+            if len(strong_errors) > 0:
+                print("Strong errors:", repr(strong_errors))
+            if len(weak_errors) > 0:
+                print("Weak errors:", repr(weak_errors))
 
         timings = Timings(
             normal=t_normal, double=t_double,
@@ -353,18 +374,15 @@ class Integrator:
             filters = []
 
         strong_keys, weak_keys = self._check_convergence_keys(
-            samplers, strong_convergence.keys(), weak_convergence.keys())
+            samplers, strong_convergence, weak_convergence)
 
-        if len(strong_keys + weak_keys) > 0:
+        if len(strong_keys | weak_keys) == 0:
             raise ValueError("At least one convergence criterion must be specified")
 
-        convergence_samplers = {key:samplers[key] for key in weak_keys + strong_keys}
+        convergence_samplers = {key:samplers[key] for key in weak_keys | strong_keys}
 
         if self.verbose:
-            if display is not None:
-                label = StatefulLabel(display)
-            else:
-                label = StatefulLabel([('time', '.3f')])
+            label = StatefulLabel(display=display)
 
         if self.verbose:
             print(
@@ -382,7 +400,7 @@ class Integrator:
         timings = Timings(samplers=t_samplers)
         steps_used = []
         if self.verbose:
-            label.set(sample_start)
+            label.set(t, sample_start)
 
         if self.verbose:
             if t_end is None:
@@ -418,8 +436,8 @@ class Integrator:
                 sample_normal, sample_double, strong_keys, weak_keys)
 
             converged = (
-                any(strong_errors[key] > strong_convergence[key] for key in strong_keys) or
-                any(weak_errors[key] > weak_convergence[key] for key in weak_keys))
+                all(strong_errors[key] <= strong_convergence[key] for key in strong_keys) and
+                all(weak_errors[key] <= weak_convergence[key] for key in weak_keys))
 
             if converged:
                 self.thr.copy_array(data_try, dest=data_dev)
@@ -430,7 +448,7 @@ class Integrator:
                 results.append(sample_final)
 
                 if self.verbose:
-                    label.set(sample_final)
+                    label.set(t, sample_final)
                     if t_end is None:
                         pbar.update(t - t_start)
                     else:
