@@ -124,7 +124,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
         s.plot(N_t, N_mean.sum(1) + N_err.sum(1), 'b--')
         s.plot(N_t, N_mean.sum(1) - N_err.sum(1), 'b--')
     s.plot(N_t, N_exact, 'k--')
-    s.set_ylim(0, N)
+    s.set_ylim(0, N * 1.05)
     s.set_xlabel('$t$')
     s.set_ylabel('$N$')
     fig.savefig('visibility_N' + suffix + '.pdf')
