@@ -218,7 +218,8 @@ class ImaginaryTimeGroundState:
 class Integrator:
 
     def __init__(self, thr, dtype, grid, system,
-            wigner=False, seed=None, stepper_cls=RK46NLStepper, trajectories=1):
+            wigner=False, seed=None, stepper_cls=RK46NLStepper, trajectories=1,
+            profile=False):
 
         if wigner:
             corrections = -(
@@ -252,7 +253,8 @@ class Integrator:
 
         self._integrator = integrator.Integrator(
             thr, stepper,
-            wiener=wiener if wigner else None)
+            wiener=wiener if wigner else None,
+            profile=profile)
 
     def fixed_step(self, wfs, *args, **kwds):
         return self._integrator.fixed_step(wfs.data, *args, **kwds)
