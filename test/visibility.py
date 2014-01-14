@@ -30,7 +30,6 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     interval = 0.12 # time interval
     samples = 200 # how many samples to take during simulation
     steps = samples * 100 # number of time steps (should be multiple of samples)
-    gamma = 0.0 if no_losses else 0.2
     f_detuning = 37
     f_rabi = 350
     N = 55000
@@ -38,9 +37,12 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     freqs = (97.6, 97.6, 11.96)
     components = [const.rb87_1_minus1, const.rb87_2_1]
     scattering = const.scattering_matrix(components, B=const.magical_field_Rb87_1m1_2p1)
-    losses = [
-        (gamma, (1, 0)),
-        (gamma, (0, 1))]
+    if no_losses:
+        losses = None
+    else:
+        losses = [
+            (0.2, (1, 0)),
+            (0.2, (0, 1))]
 
     rng = numpy.random.RandomState(1234)
 
