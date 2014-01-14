@@ -249,7 +249,7 @@ class Integrator:
                 for filter_ in filters:
                     filter_(data_out, t)
 
-            if verbose and steps % val_step == 0:
+            if verbose and step % val_step == 0:
                 pbar.update(step)
 
             if samples is not None:
