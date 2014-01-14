@@ -4,155 +4,14 @@ import numpy
 import sys
 import time
 
-from progressbar import Bar, ETA, Timer, Percentage, ProgressBar, Widget, WidgetHFill
+from progressbar import Bar, ETA, Timer, Percentage, ProgressBar
+
+from beclab.integrator.progress import StatefulLabel, HFill
+from beclab.integrator.results import sample, transpose_results, calculate_errors, \
+    Sampler, StopIntegration, IntegrationError, Timings, IntegrationInfo
 
 
 _range = xrange if sys.version_info[0] < 3 else range
-
-
-class StatefulLabel(Widget):
-
-    def __init__(self, display=None, time_formatter='.3f'):
-        keys = []
-        formatters = []
-        if display is not None:
-            for key in display:
-                if isinstance(key, tuple):
-                    key, formatter = key
-                    formatter = "{" + key + ":" + formatter + "}"
-                else:
-                    formatter = "{" + key + "}"
-                keys.append(key)
-                formatters.append(formatter)
-
-        format_str = ", ".join(key + ": " + formatter for key, formatter in zip(keys, formatters))
-
-        self.keys = keys
-        self.format_str = format_str
-        self.time_format_str = (
-            "time: {time:" + time_formatter + "}" + (", " if display is not None else ""))
-        self.values = None
-
-    def set(self, t, sample_dict):
-        self.time = t
-        if self.values is None:
-            self.values = {}
-        for key in self.keys:
-            self.values[key] = sample_dict[key]['mean']
-
-    def update(self, pbar):
-        if self.values is not None:
-            return (
-                self.time_format_str.format(time=self.time) +
-                self.format_str.format(**self.values))
-        else:
-            return "(not initialized)"
-
-
-class HFill(WidgetHFill):
-
-    def update(self, hbar, width):
-        return ' ' * width
-
-
-class StopIntegration(Exception):
-    pass
-
-
-class IntegrationError(Exception):
-    pass
-
-
-class Sampler:
-
-    def __init__(self, no_mean=False, no_stderr=False, no_values=False):
-        self.no_mean = no_mean
-        self.no_stderr = no_stderr
-        self.no_values = no_values
-
-
-def _transpose_results(results):
-    new_results = {}
-    for key in results[0]:
-        new_results[key] = dict(trajectories=results[0][key]['trajectories'])
-        for val_key in results[0][key]:
-            if val_key != 'trajectories':
-                new_results[key][val_key] = []
-
-    for res in results:
-        for key in res:
-            for val_key in res[key]:
-                if val_key != 'trajectories':
-                    new_results[key][val_key].append(res[key][val_key])
-
-    for key in new_results:
-        for val_key in new_results[key]:
-            if val_key != 'trajectories':
-                new_results[key][val_key] = numpy.array(new_results[key][val_key])
-
-    return new_results
-
-
-class Timings:
-
-    def __init__(self, normal=0, double=0, samplers=0):
-        self.integration = normal + double
-        self.samplers = samplers
-        self.normal = normal
-        self.double = double
-
-    def __add__(self, other):
-        return Timings(
-            normal=self.normal + other.normal,
-            double=self.double + other.double,
-            samplers=self.samplers + other.samplers)
-
-
-class IntegrationInfo:
-
-    def __init__(self, timings, strong_errors, weak_errors, steps):
-        self.weak_errors = weak_errors
-        self.strong_errors = strong_errors
-        self.timings = timings
-        self.steps = steps
-
-
-def _calculate_errors(sample_normal, sample_double, strong_keys, weak_keys):
-
-    # FIXME: performance can be improved by calculating norms on GPU
-
-    weak_errors = {}
-    strong_errors = {}
-
-    for key in weak_keys:
-        mean_normal = sample_normal[key]['mean']
-        mean_double = sample_double[key]['mean']
-        error_norm = numpy.linalg.norm(mean_normal)
-        if error_norm > 0:
-            error = numpy.linalg.norm(mean_normal - mean_double) / error_norm
-        else:
-            error = 0
-        weak_errors[key] = error
-
-    for key in strong_keys:
-        values_normal = sample_normal[key]['values']
-        values_double = sample_double[key]['values']
-
-        errors = []
-        for i in _range(values_normal.shape[0]):
-            value_normal = values_normal[i]
-            value_double = values_double[i]
-
-            error_norm = numpy.linalg.norm(value_normal)
-            if error_norm > 0:
-                error = numpy.linalg.norm(value_normal - value_double) / error_norm
-            else:
-                error = 0
-            errors.append(error)
-
-        strong_errors[key] = max(errors)
-
-    return strong_errors, weak_errors
 
 
 class Integrator:
@@ -176,29 +35,14 @@ class Integrator:
             self.noise = False
 
     def _sample(self, data, t, samplers):
+
         if self.profile:
             self.thr.synchronize()
+
         t1 = time.time()
-        sample_dict = {}
-        stop_integration = False
-
-        for key, sampler in samplers.items():
-
-            try:
-                sample = sampler(data, t)
-            except StopIntegration as e:
-                sample = e.args[0]
-                stop_integration = True
-
-            sample_dict[key] = dict(trajectories=sample.shape[0], time=t)
-            if not sampler.no_values:
-                sample_dict[key]['values'] = sample
-            if not sampler.no_mean:
-                sample_dict[key]['mean'] = sample.mean(0)
-            if not sampler.no_stderr:
-                sample_dict[key]['stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
-
+        sample_dict, stop_integration = sample(data, t, samplers)
         t_samplers = time.time() - t1
+
         return sample_dict, stop_integration, t_samplers
 
     def _integrate(self, data_out, data_in, double_step, t_start, dt, steps, samples=None,

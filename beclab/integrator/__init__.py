@@ -1,4 +1,5 @@
 from beclab.integrator.integrator import Integrator, StopIntegration, Sampler
+from beclab.integrator.results import join_results
 from beclab.integrator.wiener import Wiener
 from beclab.integrator.modules import Drift, Diffusion
 
