@@ -74,7 +74,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     samplers = dict(N=n_sampler, axial_density=ax_sampler)
 
     # Integrate
-    bs(psi, 0, numpy.pi / 2)
+    bs(psi.data, 0, numpy.pi / 2)
     if integration == 'fixed':
         result, info = integrator.fixed_step(
             psi, 0, interval, steps, samples=samples,
