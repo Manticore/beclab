@@ -184,7 +184,7 @@ def get_diffusion(state_dtype, dimensions, components, losses=None):
                 %else:
                     %if sum(ls) > 1:
                     return ${conj}(${mul}(
-                        (${r_const(coeff)})
+                        (${r_const(coeff * ls[comp])})
                         %for other_comp in range(components):
                             <%
                                 pwr = ls[other_comp]
