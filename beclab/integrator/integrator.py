@@ -293,7 +293,7 @@ class Integrator:
             weak_convergence=None, strong_convergence=None, samplers=None, filters=None):
 
         if samplers is None:
-            samplers = []
+            samplers = {}
         if filters is None:
             filters = []
 
@@ -369,7 +369,7 @@ class Integrator:
         assert starting_steps % 2 == 0
 
         if samplers is None:
-            samplers = []
+            samplers = {}
         if filters is None:
             filters = []
 
