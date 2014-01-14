@@ -63,7 +63,7 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
                         correction = corrections[comp, other_comp]
                     %>
                     %if g != 0:
-                    + ${r_const(g)}
+                    + (${r_const(g)})
                         * (${norm}(psi_${other_comp}) + (${r_const(correction)}))
                     %endif
                     %endfor
@@ -92,7 +92,7 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
                     %if kappa > 0 and ls[comp] > 0:
                     - ${mul_sr}(
                         psi_${comp},
-                        ${r_const(kappa * ls[comp])}
+                        (${r_const(kappa * ls[comp])})
                             %for other_comp in range(components):
                                 <%
                                     pwr = ls[other_comp]
@@ -110,8 +110,8 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
 
                 const ${s_ctype} unitary = ${mul_ss}(
                     COMPLEX_CTR(${s_ctype})(
-                        ${unitary_coefficient.real},
-                        ${unitary_coefficient.imag}
+                        ${r_const(unitary_coefficient.real)},
+                        ${r_const(unitary_coefficient.imag)}
                         ),
                     ${mul_sr}(psi_${comp}, V + U));
 
@@ -184,7 +184,7 @@ def get_diffusion(state_dtype, dimensions, components, losses=None):
                 %else:
                     %if sum(ls) > 1:
                     return ${conj}(${mul}(
-                        ${r_const(coeff)}
+                        (${r_const(coeff)})
                         %for other_comp in range(components):
                             <%
                                 pwr = ls[other_comp]
