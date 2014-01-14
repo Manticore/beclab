@@ -22,14 +22,14 @@ def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
             Parameter('output', Annotation(state_arr, 'o')),
             Parameter('omega', Annotation(state_arr, 'io')),
             Parameter('input', Annotation(state_arr, 'i')),
-            Parameter('kinput', Annotation(state_arr, 'i')),
-            Parameter('ai', Annotation(real_dtype)),
+            Parameter('kinput', Annotation(state_arr, 'i'))]
+            + ([Parameter('dW', Annotation(dW_arr, 'i'))] if diffusion is not None else []) +
+            [Parameter('ai', Annotation(real_dtype)),
             Parameter('bi', Annotation(real_dtype)),
             Parameter('ci', Annotation(real_dtype)),
-            Parameter('stage', Annotation(numpy.int32))]
-            + ([Parameter('dW', Annotation(dW_arr, 'i'))] if diffusion is not None else []) +
-            [Parameter('t', Annotation(real_dtype)),
-            Parameter('dt', Annotation(real_dtype))],
+            Parameter('t', Annotation(real_dtype)),
+            Parameter('dt', Annotation(real_dtype)),
+            Parameter('stage', Annotation(numpy.int32))],
         """
         <%
             coords = ", ".join(idxs[1:])
@@ -154,10 +154,8 @@ class RK46NLStepper(Computation):
 
         if self._noise:
             output, input_, dW, t, dt = args
-            dt_args = dW, t, dt
         else:
             output, input_, t, dt = args
-            dt_args = t, dt
 
         plan = plan_factory()
 
@@ -179,8 +177,13 @@ class RK46NLStepper(Computation):
             plan.computation_call(self._fft_with_kprop, kdata, kprop_device, dt, data_in)
             plan.computation_call(self._fft, kdata, kdata, inverse=True)
 
-            plan.computation_call(
-                self._xpropagate, data_out, omega, data_in, kdata,
-                self._ai[stage], self._bi[stage], self._ci[stage], stage, *dt_args)
+            if self._noise:
+                plan.computation_call(
+                    self._xpropagate, data_out, omega, data_in, kdata, dW,
+                    self._ai[stage], self._bi[stage], self._ci[stage], t, dt, stage)
+            else:
+                plan.computation_call(
+                    self._xpropagate, data_out, omega, data_in, kdata,
+                    self._ai[stage], self._bi[stage], self._ci[stage], t, dt, stage)
 
         return plan
