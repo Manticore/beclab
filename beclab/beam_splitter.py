@@ -88,8 +88,8 @@ class BeamSplitter:
         self._splitter = BeamSplitterMatrix(
             wfs_meta.data, comp1_num, comp2_num).compile(wfs_meta.thread)
 
-    def __call__(self, wfs, t, theta):
+    def __call__(self, wfs_data, t, theta):
         phi = t * self._detuning + self._starting_phase
         t_pulse = (theta / numpy.pi / 2.0) / self._f_rabi
-        self._splitter(wfs.data, wfs.data, theta, phi)
+        self._splitter(wfs_data, wfs_data, theta, phi)
         return t + t_pulse
