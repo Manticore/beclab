@@ -110,7 +110,7 @@ class Timings:
 
 class IntegrationInfo:
 
-    def __init__(self, timings, weak_errors, strong_errors, steps):
+    def __init__(self, timings, strong_errors, weak_errors, steps):
         self.weak_errors = weak_errors
         self.strong_errors = strong_errors
         self.timings = timings
