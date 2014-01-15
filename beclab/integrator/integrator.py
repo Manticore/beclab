@@ -170,7 +170,7 @@ class Integrator:
             samples=samples, samplers=samplers, verbose=self.verbose, filters=filters)
         results = [sample_start] + results
 
-        strong_errors, weak_errors = _calculate_errors(
+        strong_errors, weak_errors = calculate_errors(
             results[-1], results_double[-1], strong_keys, weak_keys)
         if self.verbose:
             if len(strong_errors) > 0:
@@ -276,7 +276,7 @@ class Integrator:
                 normal=t_normal, double=t_double,
                 samplers=t_samplers_normal + t_samplers_double)
 
-            strong_errors, weak_errors = _calculate_errors(
+            strong_errors, weak_errors = calculate_errors(
                 sample_normal, sample_double, strong_keys, weak_keys)
 
             converged = (
