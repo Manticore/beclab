@@ -63,7 +63,7 @@ class VisibilitySampler(Sampler):
 
         density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
 
-        N = (density.sum((2, 3, 4)) * self._grid.dV).mean(1)
+        N = (density.sum((2, 3, 4)) * self._grid.dV).mean(0)
         I = numpy.abs((psi[:,0].conj() * psi[:,1]).sum((1, 2, 3))) * self._grid.dV
 
         return 2 * I / N.sum()
