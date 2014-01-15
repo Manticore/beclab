@@ -65,8 +65,7 @@ def sample(data, t, samplers):
         if not sampler.no_stderr:
             sample_dict[key]['stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
 
-    t_samplers = time.time() - t1
-    return sample_dict, stop_integration, t_samplers
+    return sample_dict, stop_integration
 
 
 def calculate_errors(sample_normal, sample_double, strong_keys, weak_keys):
