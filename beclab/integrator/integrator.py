@@ -191,7 +191,7 @@ class Integrator:
 
         info = IntegrationInfo(timings, strong_errors, weak_errors, steps_used)
 
-        return _transpose_results(results), info
+        return transpose_results(results), info
 
     def adaptive_step(
             self, data_dev, t_start, t_sample,
@@ -316,4 +316,4 @@ class Integrator:
 
         info = IntegrationInfo(timings, {}, {}, steps_used)
 
-        return _transpose_results(results), info
+        return transpose_results(results), info
