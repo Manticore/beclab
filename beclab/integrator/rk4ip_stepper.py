@@ -255,7 +255,11 @@ class RK4IPStepper(Computation):
 
     abbreviation = "RK4IP"
 
-    def __init__(self, shape, box, drift, trajectories=1, kinetic_coeff=0.5j, diffusion=None):
+    def __init__(self, shape, box, drift, trajectories=1, kinetic_coeff=0.5j, diffusion=None,
+            ksquared_cutoff=None):
+
+        if ksquared_cutoff is not None:
+            raise NotImplementedError
 
         real_dtype = dtypes.real_for(drift.dtype)
 

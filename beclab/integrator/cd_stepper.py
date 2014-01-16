@@ -90,7 +90,10 @@ class CDStepper(Computation):
     abbreviation = "CD"
 
     def __init__(self, shape, box, drift,
-            trajectories=1, kinetic_coeff=0.5j, diffusion=None, iterations=3):
+            trajectories=1, kinetic_coeff=0.5j, diffusion=None, iterations=3, ksquared_cutoff=None):
+
+        if ksquared_cutoff is not None:
+            raise NotImplementedError
 
         self._iterations = iterations
         real_dtype = dtypes.real_for(drift.dtype)

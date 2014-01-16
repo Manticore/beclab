@@ -6,7 +6,7 @@ from reikna.core import Computation, Parameter, Annotation, Type
 from reikna.fft import FFT
 from reikna.algorithms import PureParallel
 
-from beclab.integrator.helpers import get_ksquared, get_kprop_trf
+from beclab.integrator.helpers import get_ksquared, get_kprop_trf, get_kprop_cutoff_trf
 
 
 def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
@@ -105,7 +105,8 @@ class RK46NLStepper(Computation):
 
     abbreviation = "RK46NL"
 
-    def __init__(self, shape, box, drift, trajectories=1, kinetic_coeff=0.5j, diffusion=None):
+    def __init__(self, shape, box, drift, trajectories=1, kinetic_coeff=0.5j, diffusion=None,
+            ksquared_cutoff=None):
 
         real_dtype = dtypes.real_for(drift.dtype)
 
@@ -128,15 +129,17 @@ class RK46NLStepper(Computation):
             [Parameter('t', Annotation(real_dtype)),
             Parameter('dt', Annotation(real_dtype))])
 
-        ksquared = get_ksquared(shape, box)
-        self._kprop = (-ksquared).astype(real_dtype)
-        kprop_trf = get_kprop_trf(state_arr, self._kprop, kinetic_coeff)
+        self._ksquared_cutoff = ksquared_cutoff
+        self._ksquared = get_ksquared(shape, box).astype(real_dtype)
+        kprop_trf = get_kprop_cutoff_trf(
+            state_arr, self._ksquared, -kinetic_coeff, ksquared_cutoff=ksquared_cutoff)
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop.parameter.output.connect(
             kprop_trf, kprop_trf.input,
-            output_prime=kprop_trf.output, kprop=kprop_trf.kprop, dt=kprop_trf.dt)
+            output_prime=kprop_trf.output, ksquared=kprop_trf.ksquared, dt=kprop_trf.dt,
+            project=kprop_trf.project, propagate=kprop_trf.propagate)
 
         self._xpropagate = get_xpropagate(state_arr, drift, diffusion=diffusion, dW_arr=dW_arr)
 
@@ -150,6 +153,14 @@ class RK46NLStepper(Computation):
             0.0, 0.032918605146, 0.249351723343,
             0.466911705055, 0.582030414044, 0.847252983783])
 
+    def _project(self, plan, output, temp, input_, ksquared_device):
+        plan.computation_call(self._fft_with_kprop, temp, ksquared_device, 0, 1, 0, input_)
+        plan.computation_call(self._fft, output, temp, inverse=True)
+
+    def _kpropagate(self, plan, output, temp, input_, ksquared_device, dt):
+        plan.computation_call(self._fft_with_kprop, temp, ksquared_device, dt, 0, 1, input_)
+        plan.computation_call(self._fft, output, temp, inverse=True)
+
     def _build_plan(self, plan_factory, device_params, *args):
 
         if self._noise:
@@ -159,7 +170,7 @@ class RK46NLStepper(Computation):
 
         plan = plan_factory()
 
-        kprop_device = plan.persistent_array(self._kprop)
+        ksquared_device = plan.persistent_array(self._ksquared)
         kdata = plan.temp_array_like(output)
         omega = plan.temp_array_like(output)
         result = plan.temp_array_like(output)
@@ -169,13 +180,12 @@ class RK46NLStepper(Computation):
         for stage in range(6):
 
             data_in = data_out
-            if stage == 5:
+            if stage == 5 and self._ksquared_cutoff is None:
                 data_out = output
             else:
                 data_out = result
 
-            plan.computation_call(self._fft_with_kprop, kdata, kprop_device, dt, data_in)
-            plan.computation_call(self._fft, kdata, kdata, inverse=True)
+            self._kpropagate(plan, kdata, kdata, data_in, ksquared_device, dt)
 
             if self._noise:
                 plan.computation_call(
@@ -185,5 +195,9 @@ class RK46NLStepper(Computation):
                 plan.computation_call(
                     self._xpropagate, data_out, omega, data_in, kdata,
                     self._ai[stage], self._bi[stage], self._ci[stage], t, dt, stage)
+
+            if self._ksquared_cutoff is not None:
+                project_out = output if stage == 5 else data_out
+                self._project(plan, project_out, data_out, data_out, ksquared_device)
 
         return plan

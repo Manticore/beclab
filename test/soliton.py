@@ -165,17 +165,18 @@ class PsiSampler(Sampler):
 
 class NSampler(Sampler):
 
-    def __init__(self, dx, wigner=False, stop_time=None):
+    def __init__(self, dx, wigner=False, delta_modifier=None, stop_time=None):
         Sampler.__init__(self)
         self._wigner = wigner
         self._dx = dx
         self._stop_time = stop_time
+        self._delta_modifier = delta_modifier
 
     def __call__(self, psi, t):
         psi = psi.get()
 
         # (components, trajectories, x_points)
-        density = numpy.abs(psi) ** 2 - (0.5 / self._dx if self._wigner else 0)
+        density = numpy.abs(psi) ** 2 - (self._delta_modifier / 2 if self._wigner else 0)
 
         N = density.sum(2) * self._dx
 
@@ -202,12 +203,13 @@ class DensitySampler(Sampler):
         return density[:,0]
 
 
-def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
+def run_test(thr, stepper_cls, integration, cutoff=False, no_losses=False, wigner=False):
 
     print()
     print(
         "*** Running " + stepper_cls.abbreviation +
         ", " + integration +
+        ", cutoff=" + str(cutoff) +
         ", wigner=" + str(wigner) +
         ", no_losses=" + str(no_losses) + " test")
     print()
@@ -232,6 +234,23 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     # Initial state
     psi0 = numpy.sqrt(n0) / numpy.cosh(x)
     N0 = (numpy.abs(psi0) ** 2).sum() * dx
+
+    shape, box = (lattice_size,), (domain[1] - domain[0],)
+    if cutoff:
+        ksquared_cutoff = get_padded_ksquared_cutoff(shape, box, pad=4)
+        cutoff_mask = get_ksquared_cutoff_mask(shape, box, ksquared_cutoff=ksquared_cutoff)
+        print("Using", cutoff_mask.sum(), "out of", lattice_size, "modes")
+
+        # projecting and renormalizing the initial state
+        kpsi0 = numpy.fft.fft(psi0)
+        kpsi0 *= cutoff_mask
+        psi0 = numpy.fft.ifft(kpsi0)
+        N = (numpy.abs(psi0) ** 2).sum() * dx
+        psi0 *= numpy.sqrt(N0 / N)
+    else:
+        cutoff_mask = get_ksquared_cutoff_mask(shape, box)
+        ksquared_cutoff = None
+
     n_max = (numpy.abs(psi0) ** 2).max()
     print("N0 =", N0)
 
@@ -242,7 +261,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
             numpy.random.normal(size=(paths, 1, lattice_size)) +
             1j * numpy.random.normal(size=(paths, 1, lattice_size))) / 2
         fft_scale = numpy.sqrt(dx / lattice_size)
-        psi0 = numpy.fft.ifft(random_normals) / fft_scale + psi0
+        psi0 = numpy.fft.ifft(random_normals * cutoff_mask) / fft_scale + psi0
     else:
         psi0 = numpy.tile(psi0, (1, 1, 1))
 
@@ -251,7 +270,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     # Prepare integrator components
     drift = get_drift(state_dtype, U, gamma, dx, wigner=wigner)
     stepper = stepper_cls((lattice_size,), (domain[1] - domain[0],), drift,
-        kinetic_coeff=1j,
+        kinetic_coeff=1j, ksquared_cutoff=ksquared_cutoff,
         trajectories=paths if wigner else 1,
         diffusion=get_diffusion(state_dtype, gamma) if wigner else None)
 
@@ -266,6 +285,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     psi_sampler = PsiSampler()
     n_sampler = NSampler(
         dx, wigner=wigner,
+        delta_modifier=cutoff_mask.sum() / (domain[1] - domain[0]),
         stop_time=interval if integration == 'adaptive-endless' else None)
     density_sampler = DensitySampler(dx, wigner=wigner)
 
@@ -289,6 +309,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     N_exact = N0 * numpy.exp(-gamma * N_t * 2)
 
     suffix = (
+        ('_cutoff' if cutoff else '') +
         ('_wigner' if wigner else '') +
         ('_no-losses' if no_losses else '') +
         '_' + stepper_cls.abbreviation +
@@ -326,7 +347,8 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
         psi_exact = numpy.sqrt(n0) / numpy.cosh(xx) * numpy.exp(1j * tt)
         diff = numpy.linalg.norm(psi - psi_exact) / numpy.linalg.norm(psi_exact)
         print("Difference with the exact solution:", diff)
-        assert diff < 1e-3
+        if not cutoff:
+            assert diff < 1e-3
 
     # Check the population decay
     sigma = numpy.linalg.norm(N_err) if wigner else N_mean * 1e-6
@@ -341,6 +363,11 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
+    cutoffs = [
+        False,
+        True,
+    ]
+
     steppers = [
         CDIPStepper,
         CDStepper,
@@ -354,8 +381,8 @@ if __name__ == '__main__':
         'adaptive-endless',
     ]
 
-    for stepper_cls, integration in itertools.product(steppers, integrations):
-        run_test(thr, stepper_cls, integration, no_losses=True, wigner=False)
-        run_test(thr, stepper_cls, integration, wigner=False)
+    for stepper_cls, integration, cutoff in itertools.product(steppers, integrations, cutoffs):
+        run_test(thr, stepper_cls, integration, cutoff=cutoff, no_losses=True, wigner=False)
+        run_test(thr, stepper_cls, integration, cutoff=cutoff, wigner=False)
         if integration == 'fixed':
-            run_test(thr, stepper_cls, integration, wigner=True)
+            run_test(thr, stepper_cls, integration, cutoff=cutoff, wigner=True)
