@@ -9,6 +9,7 @@ from beclab.modules import get_drift, get_diffusion
 from beclab.wavefunction import WavefunctionSet, WavefunctionSetMetadata
 from beclab.samplers import EnergySampler, StoppingEnergySampler
 from beclab.filters import NormalizationFilter
+from beclab.cutoff import get_energy_cutoff_mask
 
 
 class HarmonicPotential:
@@ -109,18 +110,18 @@ class System:
         self.kinetic_coeff = -const.HBAR ** 2 / (2 * components[0].m)
 
 
-def box_for_tf(system, comp_num, N, border=1.2):
+def box_for_tf(system, comp_num, N, pad=1.2):
     m = system.components[comp_num].m
     g = system.interactions[comp_num, comp_num]
     mu = const.mu_tf_3d(system.potential.trap_frequencies, N, m, g)
     diameter = lambda f: (
-        2.0 * border * numpy.sqrt(2.0 * mu / (m * (2 * numpy.pi * f) ** 2)))
+        2.0 * pad * numpy.sqrt(2.0 * mu / (m * (2 * numpy.pi * f) ** 2)))
     return tuple(diameter(f) for f in system.potential.trap_frequencies)
 
 
 class ThomasFermiGroundState:
 
-    def __init__(self, thr, dtype, grid, system):
+    def __init__(self, thr, dtype, grid, system, energy_cutoff=None):
 
         if grid.dimensions != 3:
             raise NotImplementedError()
@@ -131,7 +132,8 @@ class ThomasFermiGroundState:
         self.system = system
 
         self.wfs_meta = WavefunctionSetMetadata(
-            thr, dtype, grid, components=len(self.system.components))
+            thr, dtype, grid, components=len(self.system.components),
+            energy_cutoff=energy_cutoff)
 
     def __call__(self, Ns):
 
@@ -155,7 +157,11 @@ class ThomasFermiGroundState:
 
             psi_TF[0, i] = numpy.sqrt((mu - V[i]).clip(0) / self.system.interactions[i, i])
 
-            # renormalize to account for coarse grids
+            if wfs.energy_cutoff is not None:
+                mask = get_energy_cutoff_mask(wfs.grid, component, energy_cutoff=wfs.energy_cutoff)
+                psi_TF[0, i] = numpy.fft.ifftn(numpy.fft.fftn(psi_TF[0, i]) * mask)
+
+            # renormalize to account for coarse grids or a cutoff
             N0 = (numpy.abs(psi_TF[0, i]) ** 2).sum() * self.grid.dV
             psi_TF[0, i] *= numpy.sqrt(N / N0)
 
@@ -165,7 +171,8 @@ class ThomasFermiGroundState:
 
 class ImaginaryTimeGroundState:
 
-    def __init__(self, thr, dtype, grid, system, stepper_cls=RK46NLStepper, verbose=True):
+    def __init__(self, thr, dtype, grid, system, stepper_cls=RK46NLStepper,
+            energy_cutoff=None, verbose=True):
 
         if grid.dimensions != 3:
             raise NotImplementedError()
@@ -175,7 +182,7 @@ class ImaginaryTimeGroundState:
         self.grid = grid
         self.system = system
 
-        self.tf_gen = ThomasFermiGroundState(thr, dtype, grid, system)
+        self.tf_gen = ThomasFermiGroundState(thr, dtype, grid, system, energy_cutoff=energy_cutoff)
         self.wfs_meta = self.tf_gen.wfs_meta
 
         drift = get_drift(
@@ -184,9 +191,15 @@ class ImaginaryTimeGroundState:
             potential=system.potential.get_module(dtype, grid, system.components),
             unitary_coefficient=-1 / const.HBAR)
 
+        if energy_cutoff is None:
+            ksquared_cutoff = None
+        else:
+            ksquared_cutoff = energy_cutoff / const.HBAR ** 2 / (2 * system.components[0].m)
+
         stepper = stepper_cls(
             grid.shape, grid.box, drift,
-            kinetic_coeff=-1 / const.HBAR * system.kinetic_coeff)
+            kinetic_coeff=-1 / const.HBAR * system.kinetic_coeff,
+            ksquared_cutoff=ksquared_cutoff)
 
         self.integrator = integrator.Integrator(thr, stepper, verbose=verbose)
 

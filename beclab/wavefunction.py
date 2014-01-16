@@ -91,7 +91,8 @@ def get_multiply(wfs_meta):
 class WavefunctionSetMetadata:
 
     def __init__(self, thread, dtype, grid,
-            components=1, trajectories=1, representation=REPR_CLASSICAL):
+            components=1, trajectories=1, representation=REPR_CLASSICAL,
+            energy_cutoff=None):
 
         self.thread = thread
         self.grid = grid
@@ -101,16 +102,19 @@ class WavefunctionSetMetadata:
         self.representation = representation
         self.shape = (trajectories, components) + grid.shape
         self.data = Type(dtype, self.shape)
+        self.energy_cutoff = energy_cutoff
 
 
 class WavefunctionSet(WavefunctionSetMetadata):
 
     def __init__(self, thread, dtype, grid,
-            components=1, trajectories=1, representation=REPR_CLASSICAL):
+            components=1, trajectories=1, representation=REPR_CLASSICAL,
+            energy_cutoff=None):
 
         WavefunctionSetMetadata.__init__(
             self, thread, dtype, grid,
-            components=components, trajectories=trajectories, representation=representation)
+            components=components, trajectories=trajectories, representation=representation,
+            energy_cutoff=energy_cutoff)
         self.data = thread.array(self.shape, dtype)
         self._multiply = get_multiply(self)
 
@@ -120,7 +124,8 @@ class WavefunctionSet(WavefunctionSetMetadata):
             wfs_meta.thread, wfs_meta.dtype, wfs_meta.grid,
             components=wfs_meta.components,
             trajectories=wfs_meta.trajectories,
-            representation=wfs_meta.representation)
+            representation=wfs_meta.representation,
+            energy_cutoff=wfs_meta.energy_cutoff)
 
     def fill_with(self, data):
         data_dims = len(data.shape)
@@ -137,7 +142,7 @@ class WavefunctionSet(WavefunctionSetMetadata):
         wf = WavefunctionSet(
             self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
-            representation=self.representation)
+            representation=self.representation, energy_cutoff=self.energy_cutoff)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)
         wf.fill_with(self.data.get())
@@ -149,8 +154,8 @@ class WavefunctionSet(WavefunctionSetMetadata):
         wf = WavefunctionSet(
             self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
-            representation=REPR_WIGNER)
         wcoh = WignerCoherent(self.grid, wf.data, self.data).compile(self.thread)
+            representation=REPR_WIGNER, energy_cutoff=self.energy_cutoff)
         wcoh(wf.data, self.data)
         return wf
 
@@ -159,7 +164,7 @@ class WavefunctionSet(WavefunctionSetMetadata):
         wf = WavefunctionSet(
             self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
-            representation=REPR_POSITIVE_P)
+            representation=REPR_POSITIVE_P, energy_cutoff=self.energy_cutoff)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)
         wf.fill_with(self.data.get())

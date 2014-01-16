@@ -8,3 +8,4 @@ from beclab.bec import (
     HarmonicPotential, System, Integrator,
     box_for_tf, ThomasFermiGroundState, ImaginaryTimeGroundState)
 from beclab.beam_splitter import BeamSplitter
+from beclab.cutoff import get_padded_energy_cutoff, get_energy_cutoff_mask
