@@ -1,8 +1,8 @@
 import numpy
 
 from beclab.integrator import Sampler, StopIntegration
-from beclab.wavefunction import REPR_WIGNER
-from beclab.meters import EnergyMeter
+from beclab.wavefunction import WavefunctionSet
+from beclab.meters import EnergyMeter, PopulationMeter, Density1DMeter
 
 
 class PsiSampler(Sampler):
@@ -18,33 +18,29 @@ class PopulationSampler(Sampler):
 
     def __init__(self, wfs_meta, beam_splitter=None, theta=0):
         Sampler.__init__(self)
-        self._thr = wfs_meta.thread
-        self._wigner = (wfs_meta.representation == REPR_WIGNER)
-        self._grid = wfs_meta.grid
         self._theta = theta
+        self._pmeter = PopulationMeter(wfs_meta)
 
         self._beam_splitter = beam_splitter
         if beam_splitter is not None:
-            self._psi_temp = self._thr.empty_like(wfs_meta.data)
+            self._wfs_temp = WavefunctionSet.for_meta(wfs_meta)
 
     def __call__(self, wfs_data, t):
         if self._beam_splitter is not None:
-            self._thr.copy_array(wfs_data, dest=self._psi_temp)
-            self._beam_splitter(self._psi_temp, t, self._theta)
-            psi = self._psi_temp.get()
+            self._wfs_temp.fill_with(wfs_data)
+            self._beam_splitter(self._wfs_temp.data, t, self._theta)
+            data = self._wfs_temp.data
         else:
-            psi = wfs_data.get()
+            data = wfs_data
 
-        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
-        return density.sum((2, 3, 4)) * self._grid.dV
+        return self._pmeter(data)
 
 
 class InteractionSampler(Sampler):
 
-    def __init__(self, wfs):
+    def __init__(self, wfs_meta):
         Sampler.__init__(self)
-        self._wigner = (wfs.representation == REPR_WIGNER)
-        self._grid = wfs.grid
+        self._grid = wfs_meta.grid
 
     def __call__(self, psi, t):
         psi = psi.get()
@@ -53,59 +49,37 @@ class InteractionSampler(Sampler):
 
 class VisibilitySampler(Sampler):
 
-    def __init__(self, wfs):
+    def __init__(self, wfs_meta):
         Sampler.__init__(self)
-        self._wigner = (wfs.representation == REPR_WIGNER)
-        self._grid = wfs.grid
+        self._psampler = PopulationSampler(wfs_meta)
+        self._isampler = InteractionSampler(wfs_meta)
 
-    def __call__(self, psi, t):
-        psi = psi.get()
-
-        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
-
-        N = (density.sum((2, 3, 4)) * self._grid.dV).mean(0)
-        I = numpy.abs((psi[:,0].conj() * psi[:,1]).sum((1, 2, 3))) * self._grid.dV
-
-        return 2 * I / N.sum()
+    def __call__(self, wfs_data, t):
+        Ns = self._psampler(wfs_data, t)
+        Is = self._isampler(wfs_data, t)
+        return 2 * numpy.abs(Is.mean()) / (Ns.mean(0)).sum()
 
 
 class Density1DSampler(Sampler):
 
     def __init__(self, wfs_meta, axis=-1, beam_splitter=None, theta=0):
         Sampler.__init__(self)
-        self._thr = wfs_meta.thread
-        self._wigner = (wfs_meta.representation == REPR_WIGNER)
-        self._grid = wfs_meta.grid
-        self._beam_splitter = beam_splitter
-
-        self._part_dV = self._grid.dV / self._grid.dxs[axis]
-
-        if axis < 0:
-            axis = len(wfs_meta.shape) + axis
-        else:
-            axis = axis + 2
-        sum_over = set(range(2, len(wfs_meta.shape)))
-        sum_over.remove(axis)
-        self._sum_over = tuple(sum_over)
+        self._dmeter = Density1DMeter(wfs_meta, axis=axis)
+        self._theta = theta
 
         self._beam_splitter = beam_splitter
         if beam_splitter is not None:
-            self._psi_temp = self._thr.empty_like(wfs_meta.data)
-            self._theta = theta
+            self._wfs_temp = WavefunctionSet.for_meta(wfs_meta)
 
-    def __call__(self, psi, t):
+    def __call__(self, wfs_data, t):
         if self._beam_splitter is not None:
-            self._thr.copy_array(psi, dest=self._psi_temp)
-            self._beam_splitter(self._psi_temp, t, self._theta)
-            psi = self._psi_temp.get()
+            self._wfs_temp.fill_with(wfs_data)
+            self._beam_splitter(self._wfs_temp.data, t, self._theta)
+            data = self._wfs_temp.data
         else:
-            psi = psi.get()
+            data = wfs_data
 
-        # (components, trajectories, x_points)
-        density = numpy.abs(psi) ** 2 - (0.5 / self._grid.dV if self._wigner else 0)
-        density_1d = density.sum(self._sum_over) * self._part_dV
-
-        return density_1d
+        return self._dmeter(data)
 
 
 class EnergySampler(Sampler):

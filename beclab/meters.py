@@ -8,35 +8,38 @@ from reikna.fft import FFT
 
 import beclab.constants as const
 from beclab.wavefunction import REPR_CLASSICAL, REPR_WIGNER
-from beclab.integrator.helpers import get_ksquared
+from beclab.integrator import get_ksquared
 
 
-class _PopulationMeter(Computation):
+class _ReduceNorm(Computation):
+    """
+    Calculates (abs(psi) ** 2 + modifier).sum(axes) * scale.
+    """
 
-    def __init__(self, wfs_meta):
-
-        assert wfs_meta.representation in (REPR_CLASSICAL, REPR_WIGNER)
+    def __init__(self, wfs_meta, axes=None, modifier=0, scale=1):
 
         real_dtype = dtypes.real_for(wfs_meta.dtype)
-        pop_arr = Type(real_dtype, (wfs_meta.trajectories, wfs_meta.components))
-        Computation.__init__(self, [
-            Parameter(
-                'populations', Annotation(pop_arr, 'o')),
-            Parameter('wfs_data', Annotation(wfs_meta.data, 'i'))])
 
         real_arr = Type(real_dtype, wfs_meta.shape)
-        self._reduce = Reduce(
-            real_arr, predicate_sum(real_dtype),
-            axes=list(range(2, len(wfs_meta.shape))))
+        self._reduce = Reduce(real_arr, predicate_sum(real_dtype), axes=axes)
 
-        norm = norm_const(wfs_meta.data, 2)
-        scale = mul_const(real_arr, dtypes.cast(real_dtype)(wfs_meta.grid.dV))
-        self._reduce.parameter.input.connect(scale, scale.output, norm=scale.input)
-        self._reduce.parameter.norm.connect(norm, norm.output, wfs_data=norm.input)
+        result_arr = self._reduce.parameter.output
+        reduce_size = self._reduce.parameter.input.size // self._reduce.parameter.output.size
 
-        if wfs_meta.representation == REPR_WIGNER:
-            add = add_const(pop_arr, -wfs_meta.grid.modes / 2.)
-            self._reduce.parameter.output.connect(add, add.input, populations=add.output)
+        norm_trf = norm_const(wfs_meta.data, 2)
+        self._reduce.parameter.input.connect(norm_trf, norm_trf.output, wfs_data=norm_trf.input)
+
+        scale_trf = mul_const(result_arr, dtypes.cast(real_dtype)(scale))
+        self._reduce.parameter.output.connect(scale_trf, scale_trf.input, scaled=scale_trf.output)
+
+        if modifier != 0:
+            scaled_modifier = modifier * reduce_size * scale
+            add_trf = add_const(result_arr, scaled_modifier)
+            self._reduce.parameter.scaled.connect(add_trf, add_trf.input, result=add_trf.output)
+
+        Computation.__init__(self, [
+            Parameter('result', Annotation(result_arr, 'o')),
+            Parameter('wfs_data', Annotation(wfs_meta.data, 'i'))])
 
     def _build_plan(self, plan_factory, device_params, populations, wfs_data):
         plan = plan_factory()
@@ -48,8 +51,44 @@ class PopulationMeter:
 
     def __init__(self, wfs_meta):
         thread = wfs_meta.thread
-        self._meter = _PopulationMeter(wfs_meta).compile(thread)
-        self._out = thread.empty_like(self._meter.parameter.populations)
+        scale = wfs_meta.grid.dV
+        if wfs_meta.representation == REPR_WIGNER:
+            modifier = -wfs_meta.modes / wfs_meta.grid.V / 2
+        else:
+            modifier = 0
+        self._meter = _ReduceNorm(
+            wfs_meta, axes=list(range(2, len(wfs_meta.shape))),
+            scale=scale, modifier=modifier).compile(thread)
+        self._out = thread.empty_like(self._meter.parameter.result)
+
+    def __call__(self, wfs_data):
+        self._meter(self._out, wfs_data)
+        return self._out.get()
+
+
+class Density1DMeter:
+
+    def __init__(self, wfs_meta, axis=-1):
+        thread = wfs_meta.thread
+        scale = wfs_meta.grid.dV
+
+        scale = wfs_meta.grid.dV / wfs_meta.grid.dxs[axis]
+        if wfs_meta.representation == REPR_WIGNER:
+            modifier = -wfs_meta.modes / wfs_meta.grid.V / 2
+        else:
+            modifier = 0
+
+        if axis < 0:
+            axis = len(wfs_meta.shape) + axis
+        else:
+            axis = axis + 2
+        axes = set(range(2, len(wfs_meta.shape)))
+        axes.remove(axis)
+        axes = tuple(axes)
+
+        self._meter = _ReduceNorm(
+            wfs_meta, axes=axes, scale=scale, modifier=modifier).compile(thread)
+        self._out = thread.empty_like(self._meter.parameter.result)
 
     def __call__(self, wfs_data):
         self._meter(self._out, wfs_data)

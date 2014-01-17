@@ -25,9 +25,31 @@ def trf_combine(psi_w_arr, psi_c_arr):
         """)
 
 
+def trf_mask(psi_arr, mask_arr):
+    return Transformation(
+        [Parameter('output', Annotation(psi_arr, 'o')),
+        Parameter('input', Annotation(psi_arr, 'i')),
+        Parameter('mask', Annotation(mask_arr, 'i'))],
+        """
+        ${mask.ctype} mask = ${mask.load_idx}(${', '.join(idxs[2:])});
+
+        ${input.ctype} psi;
+        if (mask)
+        {
+            psi = ${input.load_same};
+        }
+        else
+        {
+            psi = ${dtypes.c_constant(0, input.dtype)};
+        }
+
+        ${output.store_same}(psi);
+        """)
+
+
 class WignerCoherent(Computation):
 
-    def __init__(self, grid, data_out, data_in, seed=None):
+    def __init__(self, grid, data_out, data_in, cutoff=None, seed=None):
         Computation.__init__(self, [
             Parameter('output', Annotation(data_out, 'o')),
             Parameter('input', Annotation(data_in, 'i'))])
@@ -45,6 +67,14 @@ class WignerCoherent(Computation):
         self._rng.parameter.counters.connect(trf_ignore, trf_ignore.input)
 
         self._fft = FFT(data_out, axes=range(2, len(data_out.shape)))
+
+        self._cutoff = cutoff
+        if cutoff is not None:
+            self._cutoff_mask = cutoff.get_mask(grid)
+            mask = trf_mask(data_out, self._cutoff_mask)
+            self._fft.parameter.input.connect(
+                mask, mask.output, unmasked_input=mask.input, mask=mask.mask)
+
         combine = trf_combine(data_out, data_in)
         self._fft.parameter.output.connect(
             combine, combine.noise,
@@ -55,7 +85,12 @@ class WignerCoherent(Computation):
 
         randoms = plan.temp_array_like(output)
         plan.computation_call(self._rng, randoms)
-        plan.computation_call(self._fft, output, input_, randoms, inverse=True)
+
+        if self._cutoff is None:
+            plan.computation_call(self._fft, output, input_, randoms, inverse=True)
+        else:
+            mask_device = plan.persistent_array(self._cutoff_mask)
+            plan.computation_call(self._fft, output, input_, randoms, mask_device, inverse=True)
 
         return plan
 
@@ -92,7 +127,7 @@ class WavefunctionSetMetadata:
 
     def __init__(self, thread, dtype, grid,
             components=1, trajectories=1, representation=REPR_CLASSICAL,
-            energy_cutoff=None):
+            cutoff=None):
 
         self.thread = thread
         self.grid = grid
@@ -102,19 +137,26 @@ class WavefunctionSetMetadata:
         self.representation = representation
         self.shape = (trajectories, components) + grid.shape
         self.data = Type(dtype, self.shape)
-        self.energy_cutoff = energy_cutoff
+        self.cutoff = cutoff
+
+    @property
+    def modes(self):
+        if self.cutoff is not None:
+            return self.cutoff.get_modes_number(self.grid)
+        else:
+            return self.grid.size
 
 
 class WavefunctionSet(WavefunctionSetMetadata):
 
     def __init__(self, thread, dtype, grid,
             components=1, trajectories=1, representation=REPR_CLASSICAL,
-            energy_cutoff=None):
+            cutoff=None):
 
         WavefunctionSetMetadata.__init__(
             self, thread, dtype, grid,
             components=components, trajectories=trajectories, representation=representation,
-            energy_cutoff=energy_cutoff)
+            cutoff=cutoff)
         self.data = thread.array(self.shape, dtype)
         self._multiply = get_multiply(self)
 
@@ -125,14 +167,19 @@ class WavefunctionSet(WavefunctionSetMetadata):
             components=wfs_meta.components,
             trajectories=wfs_meta.trajectories,
             representation=wfs_meta.representation,
-            energy_cutoff=wfs_meta.energy_cutoff)
+            cutoff=wfs_meta.cutoff)
 
     def fill_with(self, data):
-        data_dims = len(data.shape)
-        assert data.shape == self.shape[-data_dims:]
-        assert data.dtype == self.dtype
-        data = numpy.tile(data, self.shape[:-data_dims] + (1,) * data_dims)
-        self.thread.to_device(data, dest=self.data)
+        if isinstance(data, type(self.data)):
+            assert data.shape == self.shape
+            assert data.dtype == self.dtype
+            self.thread.copy_array(data, dest=self.data)
+        else:
+            data_dims = len(data.shape)
+            assert data.shape == self.shape[-data_dims:]
+            assert data.dtype == self.dtype
+            data = numpy.tile(data, self.shape[:-data_dims] + (1,) * data_dims)
+            self.thread.to_device(data, dest=self.data)
 
     def multiply_by(self, coeffs):
         self._multiply(self.data, self.data, *coeffs)
@@ -142,7 +189,7 @@ class WavefunctionSet(WavefunctionSetMetadata):
         wf = WavefunctionSet(
             self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
-            representation=self.representation, energy_cutoff=self.energy_cutoff)
+            representation=self.representation, cutoff=self.cutoff)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)
         wf.fill_with(self.data.get())
@@ -154,8 +201,9 @@ class WavefunctionSet(WavefunctionSetMetadata):
         wf = WavefunctionSet(
             self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
-        wcoh = WignerCoherent(self.grid, wf.data, self.data).compile(self.thread)
-            representation=REPR_WIGNER, energy_cutoff=self.energy_cutoff)
+            representation=REPR_WIGNER, cutoff=self.cutoff)
+        wcoh = WignerCoherent(self.grid, wf.data, self.data,
+            cutoff=self.cutoff, seed=seed).compile(self.thread)
         wcoh(wf.data, self.data)
         return wf
 
@@ -164,7 +212,7 @@ class WavefunctionSet(WavefunctionSetMetadata):
         wf = WavefunctionSet(
             self.thread, self.dtype, self.grid,
             components=self.components, trajectories=trajectories,
-            representation=REPR_POSITIVE_P, energy_cutoff=self.energy_cutoff)
+            representation=REPR_POSITIVE_P, cutoff=self.cutoff)
         # FIXME: need to copy on the device
         # (will require some support for copy with broadcasting)
         wf.fill_with(self.data.get())

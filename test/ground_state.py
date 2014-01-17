@@ -18,7 +18,7 @@ components = [const.rb87_1_minus1, const.rb87_2_1]
 N = 55000
 
 
-def ground_state(thomas_fermi=False, cutoff=False):
+def ground_state(thomas_fermi=False, use_cutoff=False):
 
     api = cluda.ocl_api()
     thr = api.Thread.create()
@@ -29,24 +29,23 @@ def ground_state(thomas_fermi=False, cutoff=False):
     system = System(components, scattering, potential=potential)
     grid = UniformGrid(shape, box_for_tf(system, 0, N))
 
-    if cutoff:
-        energy_cutoff = get_padded_energy_cutoff(grid, components[0], pad=4)
-        cutoff_mask = get_energy_cutoff_mask(grid, components[0], energy_cutoff=energy_cutoff)
-        print("Using", cutoff_mask.sum(), "modes out of", grid.size)
+    if use_cutoff:
+        cutoff = WavelengthCutoff.padded(grid, pad=4)
+        print("Using", cutoff.get_modes_number(grid), "modes out of", grid.size)
     else:
-        energy_cutoff = None
+        cutoff = None
 
     if thomas_fermi:
-        gs_gen = ThomasFermiGroundState(thr, dtype, grid, system, energy_cutoff=energy_cutoff)
+        gs_gen = ThomasFermiGroundState(thr, dtype, grid, system, cutoff=cutoff)
         gs = gs_gen([N, 0])
     else:
-        gs_gen = ImaginaryTimeGroundState(thr, dtype, grid, system, energy_cutoff=energy_cutoff)
+        gs_gen = ImaginaryTimeGroundState(thr, dtype, grid, system, cutoff=cutoff)
         ax_sampler = Density1DSampler(gs_gen.wfs_meta)
         gs, result, info = gs_gen(
             [N, 0], E_diff=1e-7, E_conv=1e-9, sample_time=1e-4,
             samplers=dict(axial_density=ax_sampler), return_info=True)
 
-    cutoff_suffix = '_cutoff' if cutoff else ''
+    cutoff_suffix = '_cutoff' if use_cutoff else ''
     tf_suffix = '_TF' if thomas_fermi else ''
 
     final_density = numpy.abs(gs.data.get()[0,0]) ** 2
@@ -75,7 +74,7 @@ def ground_state(thomas_fermi=False, cutoff=False):
 
 
 if __name__ == '__main__':
-    ground_state(thomas_fermi=True, cutoff=False)
-    ground_state(thomas_fermi=True, cutoff=True)
-    ground_state(thomas_fermi=False, cutoff=False)
-    ground_state(thomas_fermi=False, cutoff=True)
+    ground_state(thomas_fermi=True, use_cutoff=False)
+    ground_state(thomas_fermi=True, use_cutoff=True)
+    ground_state(thomas_fermi=False, use_cutoff=False)
+    ground_state(thomas_fermi=False, use_cutoff=True)

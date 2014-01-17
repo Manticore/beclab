@@ -13,19 +13,20 @@ import reikna.cluda as cluda
 from beclab import *
 
 
-def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
+def run_test(thr, stepper_cls, integration, use_cutoff=False, no_losses=False, wigner=False):
 
     print()
     print(
         "*** Running " + stepper_cls.abbreviation +
         ", " + integration +
+        ", cutoff=" + str(use_cutoff) +
         ", wigner=" + str(wigner) +
         ", no_losses=" + str(no_losses) + " test")
     print()
 
     # Simulation parameters
 
-    lattice_size = (8, 8, 64) # spatial lattice points
+    lattice_size = (16, 16, 128) # spatial lattice points
     trajectories = 16 if wigner else 1 # simulation paths
     interval = 0.12 # time interval
     samples = 200 # how many samples to take during simulation
@@ -52,11 +53,18 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     system = System(components, scattering, potential=potential, losses=losses)
     grid = UniformGrid(lattice_size, box_for_tf(system, 0, N))
 
-    gs_gen = ImaginaryTimeGroundState(thr, state_dtype, grid, system)
+    if use_cutoff:
+        cutoff = WavelengthCutoff.padded(grid, pad=4)
+        print("Using", cutoff.get_modes_number(grid), "modes out of", grid.size)
+    else:
+        cutoff = None
+
+    gs_gen = ImaginaryTimeGroundState(thr, state_dtype, grid, system, cutoff=cutoff)
     integrator = Integrator(
         thr, state_dtype, grid, system,
         trajectories=trajectories, stepper_cls=stepper_cls,
-        wigner=wigner, seed=rng.randint(0, 2**32-1))
+        wigner=wigner, seed=rng.randint(0, 2**32-1),
+        cutoff=cutoff)
 
     # Ground state
     psi = gs_gen([N, 0], E_diff=1e-7, E_conv=1e-9, sample_time=1e-5)
@@ -91,6 +99,7 @@ def run_test(thr, stepper_cls, integration, no_losses=False, wigner=False):
     suffix = (
         ('_wigner' if wigner else '') +
         ('_no-losses' if no_losses else '') +
+        ('_cutoff' if use_cutoff else '') +
         '_' + stepper_cls.abbreviation +
         '_' + integration)
 
@@ -151,6 +160,11 @@ if __name__ == '__main__':
     api = cluda.ocl_api()
     thr = api.Thread.create()
 
+    cutoffs = [
+        False,
+        True
+    ]
+
     steppers = [
         CDIPStepper,
         CDStepper,
@@ -163,8 +177,8 @@ if __name__ == '__main__':
         'adaptive',
     ]
 
-    for stepper_cls, integration in itertools.product(steppers, integrations):
-        run_test(thr, stepper_cls, integration, no_losses=True, wigner=False)
-        run_test(thr, stepper_cls, integration, wigner=False)
+    for stepper_cls, integration, cutoff in itertools.product(steppers, integrations, cutoffs):
+        run_test(thr, stepper_cls, integration, use_cutoff=cutoff, no_losses=True, wigner=False)
+        run_test(thr, stepper_cls, integration, use_cutoff=cutoff, wigner=False)
         if integration == 'fixed':
-            run_test(thr, stepper_cls, integration, wigner=True)
+            run_test(thr, stepper_cls, integration, use_cutoff=cutoff, wigner=True)
