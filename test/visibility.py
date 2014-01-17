@@ -60,11 +60,6 @@ def run_test(thr, stepper_cls, integration, use_cutoff=False, no_losses=False, w
         cutoff = None
 
     gs_gen = ImaginaryTimeGroundState(thr, state_dtype, grid, system, cutoff=cutoff)
-    integrator = Integrator(
-        thr, state_dtype, grid, system,
-        trajectories=trajectories, stepper_cls=stepper_cls,
-        wigner=wigner, seed=rng.randint(0, 2**32-1),
-        cutoff=cutoff)
 
     # Ground state
     psi = gs_gen([N, 0], E_diff=1e-7, E_conv=1e-9, sample_time=1e-5)
@@ -74,6 +69,12 @@ def run_test(thr, stepper_cls, integration, use_cutoff=False, no_losses=False, w
     # Initial noise
     if wigner:
         psi = psi.to_wigner_coherent(trajectories, seed=rng.randint(0, 2**32-1))
+
+    integrator = Integrator(
+        psi, system,
+        trajectories=trajectories, stepper_cls=stepper_cls,
+        wigner=wigner, seed=rng.randint(0, 2**32-1),
+        cutoff=cutoff)
 
     # Prepare samplers
     bs = BeamSplitter(psi, f_detuning=f_detuning, f_rabi=f_rabi)

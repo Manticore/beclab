@@ -234,15 +234,19 @@ class ImaginaryTimeGroundState:
 
 class Integrator:
 
-    def __init__(self, thr, dtype, grid, system,
+    def __init__(self, wfs_meta, system,
             wigner=False, seed=None, stepper_cls=RK46NLStepper, trajectories=1,
             cutoff=None, profile=False):
+
+        thr = wfs_meta.thread
+        dtype = wfs_meta.dtype
+        grid = wfs_meta.grid
 
         if wigner:
             corrections = -(
                 numpy.ones_like(system.interactions) / 2 +
                 numpy.eye(system.interactions.shape[0]) / 2
-                ) * grid.modes / grid.V
+                ) * wfs_meta.modes / grid.V
         else:
             corrections = None
 
