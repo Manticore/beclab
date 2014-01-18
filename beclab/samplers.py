@@ -58,7 +58,7 @@ class VisibilitySampler(Sampler):
     def __call__(self, wfs_data, t):
         Ns = self._psampler(wfs_data, t)
         Is = self._isampler(wfs_data, t)
-        return 2 * numpy.abs(Is.mean()) / (Ns.mean(0)).sum()
+        return 2 * numpy.abs(Is) / Ns.sum(1)
 
 
 class Density1DSampler(Sampler):
