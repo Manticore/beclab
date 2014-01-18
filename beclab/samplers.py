@@ -42,9 +42,10 @@ class InteractionSampler(Sampler):
         Sampler.__init__(self)
         self._grid = wfs_meta.grid
 
-    def __call__(self, psi, t):
-        psi = psi.get()
-        return (psi[:,0].conj() * psi[:,1]).sum((1, 2, 3)) * self._grid.dV
+    def __call__(self, wfs_data, t):
+        psi = wfs_data.get()
+        dimensions = tuple(range(1, len(psi.shape) - 1))
+        return (psi[:,0].conj() * psi[:,1]).sum(dimensions) * self._grid.dV
 
 
 class VisibilitySampler(Sampler):
