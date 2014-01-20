@@ -249,7 +249,7 @@ class Integrator:
         if self.verbose:
             if t_end is None:
                 widgets = [label, ' ', HFill(), Timer()]
-                maxval = None
+                maxval = 1e10 # must be higher than any possible value of time
             else:
                 widgets = [label, ' ', HFill(), Percentage(), ' ', ETA()]
                 maxval = t_end - t_start
