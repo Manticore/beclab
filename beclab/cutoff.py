@@ -10,7 +10,7 @@ class WavelengthCutoff:
         self.ksquared = ksquared
 
     @classmethod
-    def for_energy(cls, energy):
+    def for_energy(cls, energy, component):
         return cls(energy / (const.HBAR ** 2 / (2 * component.m)))
 
     @classmethod
