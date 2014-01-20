@@ -1,5 +1,8 @@
 from setuptools import setup
 
+VERSION = '0.1.0'
+RELEASE = '0.1.0+dev'
+
 
 if __name__ == '__main__':
 
@@ -29,7 +32,7 @@ if __name__ == '__main__':
             #'beclab': ['*.mako'],
             #'beclab/integrator': ['*.mako'],
             },
-        version="0.1.0",
+        version=VERSION,
         author='Bogdan Opanchuk',
         author_email='bogdan@opanchuk.net',
         url='http://github.com/Manticore/beclab',
