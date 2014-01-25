@@ -6,7 +6,7 @@ from reikna.core import Computation, Parameter, Annotation, Type
 from reikna.fft import FFT
 from reikna.algorithms import PureParallel
 
-from beclab.integrator.helpers import get_ksquared, get_kprop_trf, get_kprop_cutoff_trf
+from beclab.integrator.helpers import get_ksquared, get_kprop_trf, get_project_trf
 
 
 def get_xpropagate(state_arr, drift, diffusion=None, dW_arr=None):
@@ -129,17 +129,22 @@ class RK46NLStepper(Computation):
             [Parameter('t', Annotation(real_dtype)),
             Parameter('dt', Annotation(real_dtype))])
 
-        self._ksquared_cutoff = ksquared_cutoff
         self._ksquared = get_ksquared(shape, box).astype(real_dtype)
-        kprop_trf = get_kprop_cutoff_trf(
-            state_arr, self._ksquared, -kinetic_coeff, ksquared_cutoff=ksquared_cutoff)
+        kprop_trf = get_kprop_trf(state_arr, self._ksquared, -kinetic_coeff)
+
+        self._ksquared_cutoff = ksquared_cutoff
+        if self._ksquared_cutoff is not None:
+            project_trf = get_project_trf(state_arr, self._ksquared, ksquared_cutoff)
+            self._fft_with_project = FFT(state_arr, axes=range(2, len(state_arr.shape)))
+            self._fft_with_project.parameter.output.connect(
+                project_trf, project_trf.input,
+                output_prime=project_trf.output, ksquared=project_trf.ksquared)
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop.parameter.output.connect(
             kprop_trf, kprop_trf.input,
-            output_prime=kprop_trf.output, ksquared=kprop_trf.ksquared, dt=kprop_trf.dt,
-            project=kprop_trf.project, propagate=kprop_trf.propagate)
+            output_prime=kprop_trf.output, ksquared=kprop_trf.ksquared, dt=kprop_trf.dt)
 
         self._xpropagate = get_xpropagate(state_arr, drift, diffusion=diffusion, dW_arr=dW_arr)
 
@@ -154,11 +159,11 @@ class RK46NLStepper(Computation):
             0.466911705055, 0.582030414044, 0.847252983783])
 
     def _project(self, plan, output, temp, input_, ksquared_device):
-        plan.computation_call(self._fft_with_kprop, temp, ksquared_device, 0, 1, 0, input_)
+        plan.computation_call(self._fft_with_project, temp, ksquared_device, input_)
         plan.computation_call(self._fft, output, temp, inverse=True)
 
     def _kpropagate(self, plan, output, temp, input_, ksquared_device, dt):
-        plan.computation_call(self._fft_with_kprop, temp, ksquared_device, dt, 0, 1, input_)
+        plan.computation_call(self._fft_with_kprop, temp, ksquared_device, dt, input_)
         plan.computation_call(self._fft, output, temp, inverse=True)
 
     def _build_plan(self, plan_factory, device_params, *args):
