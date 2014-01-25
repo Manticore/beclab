@@ -6,7 +6,7 @@ from reikna.core import Computation, Parameter, Annotation, Type
 from reikna.fft import FFT
 from reikna.algorithms import PureParallel
 
-from beclab.integrator.helpers import get_ksquared, get_kprop_trf
+from beclab.integrator.helpers import get_ksquared, get_kprop_trf, get_project_trf
 
 
 def get_prop_iter(state_arr, drift, diffusion=None, dW_arr=None):
@@ -92,9 +92,6 @@ class CDStepper(Computation):
     def __init__(self, shape, box, drift,
             trajectories=1, kinetic_coeff=0.5j, diffusion=None, iterations=3, ksquared_cutoff=None):
 
-        if ksquared_cutoff is not None:
-            raise NotImplementedError
-
         self._iterations = iterations
         real_dtype = dtypes.real_for(drift.dtype)
 
@@ -117,18 +114,33 @@ class CDStepper(Computation):
             [Parameter('t', Annotation(real_dtype)),
             Parameter('dt', Annotation(real_dtype))])
 
-        ksquared = get_ksquared(shape, box)
         # '/2' because we want to propagate only to dt/2
-        self._kprop = (-ksquared / 2).astype(real_dtype)
-        kprop_trf = get_kprop_trf(state_arr, self._kprop, kinetic_coeff)
+        self._ksquared = get_ksquared(shape, box).astype(real_dtype)
+        kprop_trf = get_kprop_trf(state_arr, self._ksquared, -kinetic_coeff / 2)
+
+        self._ksquared_cutoff = ksquared_cutoff
+        if self._ksquared_cutoff is not None:
+            project_trf = get_project_trf(state_arr, self._ksquared, ksquared_cutoff)
+            self._fft_with_project = FFT(state_arr, axes=range(2, len(state_arr.shape)))
+            self._fft_with_project.parameter.output.connect(
+                project_trf, project_trf.input,
+                output_prime=project_trf.output, ksquared=project_trf.ksquared)
 
         self._fft = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop = FFT(state_arr, axes=range(2, len(state_arr.shape)))
         self._fft_with_kprop.parameter.output.connect(
             kprop_trf, kprop_trf.input,
-            output_prime=kprop_trf.output, kprop=kprop_trf.kprop, dt=kprop_trf.dt)
+            output_prime=kprop_trf.output, ksquared=kprop_trf.ksquared, dt=kprop_trf.dt)
 
         self._prop_iter = get_prop_iter(state_arr, drift, diffusion=diffusion, dW_arr=dW_arr)
+
+    def _project(self, plan, output, temp, input_, ksquared_device):
+        plan.computation_call(self._fft_with_project, temp, ksquared_device, input_)
+        plan.computation_call(self._fft, output, temp, inverse=True)
+
+    def _kpropagate(self, plan, output, temp, input_, ksquared_device, dt):
+        plan.computation_call(self._fft_with_kprop, temp, ksquared_device, dt, input_)
+        plan.computation_call(self._fft, output, temp, inverse=True)
 
     def _build_plan(self, plan_factory, device_params, *args):
 
@@ -139,7 +151,7 @@ class CDStepper(Computation):
 
         plan = plan_factory()
 
-        kprop_device = plan.persistent_array(self._kprop)
+        ksquared_device = plan.persistent_array(self._ksquared)
         kdata = plan.temp_array_like(output)
         result = plan.temp_array_like(output)
 
@@ -148,15 +160,17 @@ class CDStepper(Computation):
         for i in range(self._iterations):
 
             data_in = data_out
-            if i == self._iterations - 1:
-                dt_modifier = 2.
+            if i == self._iterations - 1 and self._ksquared_cutoff is None:
                 data_out = output
             else:
-                dt_modifier = 1.
                 data_out = result
 
-            plan.computation_call(self._fft_with_kprop, kdata, kprop_device, dt, data_in)
-            plan.computation_call(self._fft, kdata, kdata, inverse=True)
+            if i == self._iterations - 1:
+                dt_modifier = 2.
+            else:
+                dt_modifier = 1.
+
+            self._kpropagate(plan, kdata, kdata, data_in, ksquared_device, dt)
 
             if self._noise:
                 plan.computation_call(
@@ -164,5 +178,9 @@ class CDStepper(Computation):
             else:
                 plan.computation_call(
                     self._prop_iter, data_out, input_, data_in, kdata, t, dt, dt_modifier)
+
+            if self._ksquared_cutoff is not None:
+                project_out = output if i == self._iterations - 1 else data_out
+                self._project(plan, project_out, data_out, data_out, ksquared_device)
 
         return plan
