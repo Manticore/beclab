@@ -15,20 +15,41 @@ _range = xrange if sys.version_info[0] < 3 else range
 
 
 class Integrator:
+    """
+    A low-level integration class.
+    Integrates an equation of the form
 
-    def __init__(self, thr, stepper, wiener=None, verbose=True, profile=False):
+    .. math::
 
-        self.thr = thr
+        dy(x, t) = S(x, y, t, dt, dW),
+
+    where :math:`y(x)` is a multi-dimensional state vector with the primary dimension
+    being the number of trajectories, and :math:`S` is a stepper function.
+
+    :param thread: a Reikna ``Thread`` object.
+    :param stepper: a :py:class:`Stepper` object providing the function :math:`S`.
+    :param wiener: a :py:class:`Wiener` object that will be used to generate
+        Wiener process differentials ``dW``.
+    :param verbose: if ``True``, some information about integration progress
+        will be printed to stdout.
+    :param profile: if ``True``, CPU-GPU synchronization will be performed
+        before each sample collection, allowing for accurate measurements
+        of sampler time consumption.
+    """
+
+    def __init__(self, thread, stepper, wiener=None, verbose=True, profile=False):
+
+        self.thr = thread
         self.verbose = verbose
         self.profile = profile
 
-        self.stepper = stepper.compile(thr)
+        self.stepper = stepper.compile(thread)
         # TODO: temporary dW array can be avoided if wiener-stepper is called in a computation
         if wiener is not None:
             self.noise = True
             self._w = wiener
-            self.wiener = wiener.compile(thr)
-            self.wiener_double = wiener.double_step().compile(thr)
+            self.wiener = wiener.compile(thread)
+            self.wiener_double = wiener.double_step().compile(thread)
             self.dW = self.thr.empty_like(wiener.parameter.dW)
             self.dW_state = self.thr.empty_like(wiener.parameter.state)
         else:
@@ -49,6 +70,10 @@ class Integrator:
             samplers=None, verbose=False, filters=None):
 
         stepper = self.stepper
+
+        # In case of double step we will be calling the Wiener noise generator twice,
+        # keeping the time step the same as during the normal step,
+        # thus allowing for strong error estimation.
         noise_dt = dt / 2 if double_step else dt
 
         results = []
@@ -115,6 +140,14 @@ class Integrator:
         return results, t_total - t_samplers, t_samplers
 
     def _check_convergence_keys(self, samplers, strong_convergence, weak_convergence):
+        """
+        Weak convergence can be estimated only for the samplers that collect mean values,
+        and strong convergence can be estimated only for the samplers
+        that collect per-trajectory values.
+        This method checks that the convergence estimates requested by the user
+        satisfy these conditions.
+        """
+
         weak_keys = set(weak_convergence if weak_convergence is not None else [])
         strong_keys = set(strong_convergence if strong_convergence is not None else [])
 
@@ -133,8 +166,46 @@ class Integrator:
 
         return strong_keys, weak_keys
 
-    def fixed_step(self, data_dev, t_start, t_end, steps, samples=1,
-            weak_convergence=None, strong_convergence=None, samplers=None, filters=None):
+    def fixed_step(self, data_dev, t_start, t_end, steps,
+            samples=1, samplers=None, filters=None,
+            weak_convergence=None, strong_convergence=None):
+        """
+        Runs a fixed time step integration process.
+
+        :param data_dev: a Reikna ``Array`` with the initial state vector
+            (**Warning:** will be updated inplace).
+            Should be the same as the one passed to the ``stepper`` object used to
+            create this integrator.
+        :param t_start: starting time.
+        :param t_end: ending time.
+        :param steps: number of steps to perform.
+        :param samples: number of samples to collect (not including the sample at ``t = t_start``).
+            ``steps`` must be divisible by ``samples``.
+        :param samplers: a dictionary containing correspondences
+            (``sampler_name``, ``sampler``), where ``sampler`` is a :py:class:`Sampler` object.
+        :param filters: a list with :py:class:`Filter` objects that are applied to the data
+            array after each two normal steps, or after each double step.
+        :param weak_convergence: a list of sampler names which will be used to estimate
+            weak convergence (a normalized 2-norm of the difference between the sampled mean values
+            during integration with normal and double time steps).
+        :param strong_convergence: a list of sampler names which will be used to estimate
+            strong convergence (the maximum over trajectories of normalized 2-norms of differences
+            between the sampled values during integration with normal and double time steps).
+        :returns: a tuple ``(results, info)``, where ``info`` is a :py:class:`IntegrationInfo`
+            object, and ``results`` is the data structure
+
+            ::
+
+                {sampler_name:
+                    {trajectories: int,
+                     time: array(samples + 1),
+                     mean: array(samples + 1, *sample_shape),
+                     values: array(samples + 1, trajectories, *sample_shape),
+                     stderr: array(samples + 1, *sample_shape)}, ...}
+
+            The existence of ``mean``, ``values`` and ``stderr`` keys depends on
+            whether they were enabled by a particular sampler.
+        """
 
         if samplers is None:
             samplers = {}
@@ -202,7 +273,39 @@ class Integrator:
             weak_convergence=None,
             filters=None,
             display=None,
-            steps_limit=10000):
+            steps_limit=16384):
+        """
+        Runs an adaptive step integration that varies the time step to satisfy
+        the provided convergence criteria.
+
+        :param data_dev: same as for :py:meth:`fixed_step`.
+        :param t_start: same as for :py:meth:`fixed_step`.
+        :param t_sample: time between samples.
+        :param starting_steps: initial number of steps per sampling interval.
+            Must be a power of 2 and greater than 1.
+        :param t_end: ending time.
+            If ``None``, the integration will continue until one of the samplers
+            raises :py:class:`StopIntegration`.
+        :param samplers: same as for :py:meth:`fixed_step`.
+        :param filters: same as for :py:meth:`fixed_step`.
+        :param weak_convergence: a dictionary of correspondences between sampler names
+            and convergence thresholds.
+            The convergence will be estimated after each sampling interval
+            and the number of steps will be increased if it is above the threshold.
+            Convergence is calculated the same as in :py:meth:`fixed_step`.
+        :param strong_convergence: same as above, but for strong convergence.
+        :param display: a list of sampler names or tuples ``(sampler_name, format_string)``
+            specifying the values to be displayed during integration if ``verbose=True``.
+            If none is specified, only the time will be shown.
+            ``format_string`` is a format specification from ``format`` method of the standard
+            string class.
+            For example, ``('energy', '.3f')`` will result in printing the mean value from the
+            ``'energy'`` sampler as ``'{energy:.3f'}.format(energy_mean)``.
+        :param steps_limit: maximum number of steps per sampling interval.
+            If the integrator cannot achieve the required convergence without exceeding
+            this number, an :py:class:`IntegrationError` will be raised.
+        :returns: same as for :py:meth:`fixed_step`.
+        """
 
         if self.noise:
             # TODO: in order to support it we must somehow implement noise splitting

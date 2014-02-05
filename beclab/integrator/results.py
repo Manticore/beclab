@@ -6,14 +6,40 @@ _range = xrange if sys.version_info[0] < 3 else range
 
 
 class StopIntegration(Exception):
+    """
+    If raised by a :py:class:`Sampler` object, stops the :py:class:`Integrator`.
+    """
     pass
 
 
 class IntegrationError(Exception):
+    """
+    Raised by :py:class:`Integrator` in case of various integration-time errors.
+    """
     pass
 
 
 class Timings:
+    """
+    Contains timings for various parts of the integration (in seconds).
+    Has an overloaded ``+`` operator.
+
+    .. py:attribute:: samplers
+
+        Time taken by samplers.
+
+    .. py:attribute:: normal
+
+        Time taken by normal step integration.
+
+    .. py:attribute:: double
+
+        Time taken by double step integration.
+
+    .. py:attribute:: integration
+
+        Total time taken by normal and double step integration.
+    """
 
     def __init__(self, normal=0, double=0, samplers=0):
         self.integration = normal + double
@@ -29,6 +55,25 @@ class Timings:
 
 
 class IntegrationInfo:
+    """
+    Contains auxiliary information about integration.
+
+    .. py:attribute:: weak_errors
+
+        A dictionary matching sampler names to weak convergence estimates.
+
+    .. py:attribute:: strong_errors
+
+        A dictionary matching sampler names to strong convergence estimates.
+
+    .. py:attribute:: timings
+
+        A :py:class:`Timings` object.
+
+    .. py:attribute:: steps
+
+        The number of steps used for the integration.
+    """
 
     def __init__(self, timings, strong_errors, weak_errors, steps):
         self.weak_errors = weak_errors
@@ -38,11 +83,36 @@ class IntegrationInfo:
 
 
 class Sampler:
+    """
+    A base class for a sampler.
+
+    :param no_mean: if ``True``, mean values will not be collected.
+    :param no_stderr: if ``True``, estimates of sampling errors will not be collected.
+    :param no_values: if ``True``, per-trajectory values will not be collected.
+    """
 
     def __init__(self, no_mean=False, no_stderr=False, no_values=False):
         self.no_mean = no_mean
         self.no_stderr = no_stderr
         self.no_values = no_values
+
+    def __call__(self, data, t):
+        """
+        A callback method that will be invoked by the integrator
+        at every sampling point and passed the current data array
+        (**warning:** must not be modified; copy if necessary)
+        and the current integration time ``t``.
+
+        Must return a scalar or a ``numpy`` array
+        (with the same dtype and dimensions for every call).
+        The first dimension must be equal to the number of trajectories.
+        Depending on the attributes set on creation,
+        the integrator will collect ``.mean(0)``, ``.std(0) / sqrt(trajectories)``
+        and the array itself as ``mean``, ``stderr`` and ``values`` correspondingly
+        in the data structure returned from :py:meth:`Integrator.fixed_step` and
+        :py:meth:`Integrator.adaptive_step`.
+        """
+        raise NotImplementedError
 
 
 def sample(data, t, samplers):

@@ -29,14 +29,56 @@ def scale_sqrt_param(arr_t, coeff_dtype):
 
 class Wiener(Computation):
     r"""
-    Generates differentials of a Wiener process W(x,t) on a regular grid, that is
+    Bases: ``reikna.core.Computation``
 
-        W(x,t) = \sum_{n \in B} \phi_n w_n(t),
+    Samples a set of differentials :math:`dw_i` for independent standard
+    real- or complex-valued Wiener processes :math:`w_i(t)`, such that
 
-    where B is the full basis set, \phi_n are basis modes and w_n(t)
-    are single-mode Wiener processes.
+    .. math::
 
-    The generated noise has the correlation <dW(x, t) dW^*(x', t)> = C delta[x, x'] dt.
+        \langle dw_i dw_j^* \rangle = C \delta_{ij} dt,
+
+    where :math:`C` is the normalization coefficient and :math:`dt` is the time step.
+
+    :param noise_arr: an array-like object, which will be filled with samples
+        on each computation call.
+        Can have a real or a complex ``dtype``.
+    :param normalization: the normalization coefficient :math:`C` in the equation above.
+    :param seed: a seed for the RNG.
+
+    .. py:method:: compiled_signature(state:io, dW:o, dt:s)
+
+        :param state: an array containing the current RNG state.
+        :param dW: an array with the shape and dtype of ``noise_arr``,
+            where differentials will be written on each call.
+        :param dt: a scalar with the value of the time step.
+
+    .. note::
+
+        A functional Wiener process W(x,t) on a regular grid is
+
+        .. math::
+
+            W(x,t) = \sum_{n \in B} \phi_n w_n(t),
+
+        which has the correlations
+
+        .. math::
+
+            \langle dW(x, t) dW^*(x', t) \rangle = \delta(x - x') dt.
+
+        where :math:`B` is the full basis set, :math:`\phi_n` are orthonormal basis modes,
+        and :math:`w_n(t)` are single-mode standard Wiener processes.
+        For a rectangular uniform grid it is equivalent to
+
+        .. math::
+
+            W(x, t) = w_x(t) / \sqrt{dV},\quad x \in \mathrm{grid},
+
+        where :math:`dV` is the volume of a grid cell.
+        Therefore differentials :math:`dW(x,t)` of a functional Wiener process
+        can be sampled with this computation by setting
+        ``normalization`` to ``1 / sqrt(dV)``.
     """
 
     def __init__(self, noise_arr, normalization, seed=None):
