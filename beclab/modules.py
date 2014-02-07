@@ -5,7 +5,6 @@ import reikna.cluda.functions as functions
 from reikna.cluda import Module
 
 from beclab.integrator import Drift, Diffusion
-import beclab.constants as const
 
 
 def get_drift(state_dtype, dimensions, components, interactions=None, corrections=None,

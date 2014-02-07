@@ -82,7 +82,7 @@ def scattering_length(comp1, comp2, B=None):
 
     if ((comp1.f, comp1.mf) == (1, 1) and (comp2.f, comp2.mf) == (2, -1) and
             abs(B - resonance_Rb_9_1.value) < 1):
-        a12, _ = feshbach_interaction(comp1.m, resonance_Rb_9_1)
+        a12, _ = feshbach_interaction(comp1.m, B, resonance_Rb_9_1)
         return a12
 
     # TODO: check that it's actually correct
@@ -128,7 +128,7 @@ def loss_rate(*comps, **kwds):
     # Kaufman et al., PRA 80 050701 (2009)
     if len(comps) == 2 and (comps[0].f, comps[0].mf) == (1, 1) and \
             (comps[1].f, comps[1].mf) == (2, -1) and abs(B - resonance_Rb_9_1.value) < 1:
-        _, gamma12 = feshbach_interaction(comps[0].m, resonance_Rb_9_1)
+        _, gamma12 = feshbach_interaction(comps[0].m, B, resonance_Rb_9_1)
         return gamma12
 
     # TODO: check that it's actually correct
@@ -138,7 +138,7 @@ def loss_rate(*comps, **kwds):
 
     # Tojo et al., PRA 80 042704 (2009)
     if len(comps) == 2 and (comps[0].f, comps[0].mf) == (2, 2) and \
-            (comps[1].f, comps[1].mf) == (2, 2) and abs(B - B0) < 1:
+            (comps[1].f, comps[1].mf) == (2, 2):
         return 0. # TODO: check this
 
     raise NotImplementedError(
@@ -147,7 +147,7 @@ def loss_rate(*comps, **kwds):
 
 
 def effective_area(m, f1, f2):
-    eff_length = lambda f:  numpy.sqrt(HBAR / (m * 2 * numpy.pi * f))
+    eff_length = lambda f: numpy.sqrt(HBAR / (m * 2 * numpy.pi * f))
     return 2.0 * numpy.pi * eff_length(f1) * eff_length(f2)
 
 

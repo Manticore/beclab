@@ -1,5 +1,3 @@
-import numpy
-
 from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type, Transformation
 from reikna.transformations import mul_const, norm_const, add_const
