@@ -83,6 +83,34 @@ class BeamSplitterMatrix(Computation):
 
 
 class BeamSplitter:
+    r"""
+    Beam splitter for a multi-component BEC.
+    The effect of an oscillator is approximated by the application of the matrix
+
+    .. math::
+
+        \begin{pmatrix}
+            \Psi^\prime_1 \\ \Psi^\prime_2
+        \end{pmatrix} =
+        \begin{pmatrix}
+            \cos \frac{\theta}{2} & -i e^{-i \phi} \sin \frac{\theta}{2} \\
+            -i e^{i \phi} \sin \frac{\theta}{2} & \cos \frac{\theta}{2}
+        \end{pmatrix}
+        \begin{pmatrix}
+            \Psi_1 \\ \Psi_2
+        \end{pmatrix},
+
+    where :math:`\phi = \delta t + \alpha`.
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param comp1_num: the number of the first affected component.
+    :param comp2_num: the number of the second affected component.
+    :param starting_phase: initial phase :math:`\alpha` of the oscillator (in radians).
+    :param f_detuning: detuning frequency :math:`\delta` (in Hz).
+    :param f_rabi: Rabi frequency :math:`\Omega` of the oscillator.
+        Connected to the time of the pulse as :math:`\theta = \Omega t_{\mathrm{pulse}}`.
+    :param seed: RNG seed for calls with ``theta_noise > 0``.
+    """
 
     def __init__(self, wfs_meta, comp1_num=0, comp2_num=1,
             starting_phase=0, f_detuning=0, f_rabi=0, seed=None):
@@ -98,6 +126,15 @@ class BeamSplitter:
             wfs_meta.data, comp1_num, comp2_num).compile(wfs_meta.thread)
 
     def __call__(self, wfs_data, t, theta, theta_noise=0, phi_noise=0):
+        r"""
+        Applies beam splitter to an on-device wavefunction array.
+
+        :param wfs_data: a Reikna ``Array`` (with the same dtype and shape as ``wfs_meta.data``).
+        :param t: time of application (affects the total phase :math:`\phi`).
+        :param theta: rotation angle :math:`\theta`, in radians.
+        :param theta_noise: standard deviation of :math:`\theta` values for different trajectories.
+        :param phi_noise: standard deviation of :math:`\phi` values for different trajectories.
+        """
         phi = t * self._detuning + self._starting_phase
         t_pulse = (theta / numpy.pi / 2.0) / self._f_rabi
 

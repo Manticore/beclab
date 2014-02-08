@@ -8,8 +8,11 @@ from reikna.algorithms import PureParallel
 from reikna.transformations import ignore, broadcast_const
 
 
+#: "Classical" representation (wavefunction)
 REPR_CLASSICAL = "classical"
+#: Wigner representation
 REPR_WIGNER = "Wigner"
+#: Positive-P representation
 REPR_POSITIVE_P = "positive-P"
 
 
@@ -124,6 +127,46 @@ def get_multiply(wfs_meta):
 
 
 class WavefunctionSetMetadata:
+    """
+    Metadata for a wavefunction container object.
+
+    .. py:attribute:: components
+
+        The number of components in this wavefunction.
+
+    .. py:attribute:: cutoff
+
+        A :py:class:`Cutoff` object.
+
+    .. py:attribute:: data
+
+        A Reikna ``Type`` object with the container array metadata.
+
+    .. py:attribute:: dtype
+
+        A ``numpy.dtype`` object of the container data type.
+
+    .. py:attribute:: grid
+
+        A :py:class:`Grid` object.
+
+    .. py:attribute:: representation
+
+        One of :py:data:`REPR_CLASSICAL`, :py:data:`REPR_WIGNER`, :py:data:`REPR_POSITIVE_P`.
+
+    .. py:attribute:: shape
+
+        A tuple with the full shape of the data container.
+
+    .. py:attribute:: thread
+
+        A Reikna ``Thread`` object the wavefunction is connected to.
+
+    .. py:attribute:: trajectories
+
+        The number of independent wavefunctions in this container.
+
+    """
 
     def __init__(self, thread, dtype, grid,
             components=1, trajectories=1, representation=REPR_CLASSICAL,
@@ -148,6 +191,14 @@ class WavefunctionSetMetadata:
 
 
 class WavefunctionSet(WavefunctionSetMetadata):
+    """
+    Wavefunction container.
+
+    .. py:attribute:: data
+
+        A Reikna ``Array`` object.
+    """
+
 
     def __init__(self, thread, dtype, grid,
             components=1, trajectories=1, representation=REPR_CLASSICAL,
