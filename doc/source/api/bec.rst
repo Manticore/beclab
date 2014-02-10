@@ -3,6 +3,18 @@ BEC-specific wrappers
 
 .. py:module:: beclab
 
+.. autoclass:: System
+
+
+Potential
+---------
+
+.. autoclass:: beclab.bec.Potential
+    :members:
+
+.. autoclass:: HarmonicPotential
+    :show-inheritance:
+
 
 Wavefunctions
 -------------

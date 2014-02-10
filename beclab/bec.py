@@ -12,7 +12,51 @@ from beclab.filters import NormalizationFilter
 from beclab.cutoff import WavelengthCutoff
 
 
-class HarmonicPotential:
+class Potential:
+    """
+    Abstract base class of an external potential.
+    """
+
+    def get_module(self, dtype, grid, components):
+        """
+        Returns the module calculating the value of the potential.
+        The module must contain functions with signatures
+
+        ::
+
+            INLINE WITHIN_KERNEL ${r_ctype} ${prefix}${comp_num}(
+                int idx0, ..., ${r_ctype} t)
+
+        where ``r_ctype`` is a realy type.
+
+        :param grid: a :py:class:`Grid` object.
+        :param components: a list of :py:class:`Component` objects.
+        """
+        raise NotImplementedError
+
+    def get_array(self, grid, components):
+        """
+        Returns an array with the values of the potential for the given grid and components.
+
+        :param grid: a :py:class:`Grid` object.
+        :param components: a list of :py:class:`Component` objects.
+        """
+        raise NotImplementedError
+
+
+class HarmonicPotential(Potential):
+    r"""
+    A class representing a multidimensional harmonic potential:
+
+    .. math::
+
+        V_i = \frac{m_i}{2} \sum_{d=1}^D (2 \pi f_d)^2 (x_d + l_{i,d})^2
+
+    :param freqs: a tuple of trap frequencies (in Hz).
+    :param displacements: a list of tuples ``(component, dimension, displacement)``,
+        specifying the displacement :math:`l_{i,d}` for the given component :math:`i`
+        and the dimension :math:`d`.
+    """
 
     def __init__(self, freqs, displacements=None):
         if not isinstance(freqs, tuple):
@@ -95,6 +139,38 @@ class HarmonicPotential:
 
 
 class System:
+    r"""
+    Main descriptor of a BEC system with the Hamiltonian
+
+    .. math::
+
+        \hat{H} =
+            \int d \mathbf{x} \sum_{j=1}^C \sum_{k=1}^C \left\{
+                \hat{\Psi}_j^{\dagger} \left(
+                    -\frac{\hbar^2}{2m_j} \nabla^2 + V_j(\mathbf{x})
+                \right) \delta_{jk} \hat{\Psi}_k
+                + \frac{U_{jk}}{2} \int d \mathbf{x}^\prime
+                    \hat{\Psi}_j^\dagger \hat{\Psi}_k^{\prime\dagger}
+                    \hat{\Psi}_j \hat{\Psi}_k^\prime
+            \right\},
+
+    and the master equation
+
+    .. math::
+
+        \frac{d \hat{\rho}}{dt}
+        =  - \frac{i}{\hbar} \left[ \hat{H}, \hat{\rho} \right]
+            + \sum_{\mathbf{l} \in L} \kappa_{\mathbf{l}} \int d \mathbf{x}
+            \mathcal{L}_{\mathbf{l}} \left[ \hat{\rho} \right].
+
+    :param components: a list of :py:class:`Component` objects.
+    :param interactions: an array :math:`U_{jk}` with shape ``(len(components), len(components))``.
+    :param losses: a list of tuples (:math:`\kappa_{\mathbf{l}}`, (:math:`l_1`, ...))
+        for every loss source :math:`\mathbf{l}`.
+        Note that these are not the experimental loss coefficients, which can be calculated as
+        :math:`\gamma_{j,\mathbf{l}} \equiv 2 l_j \kappa_{\mathbf{l}}`.
+    :param potential: a :py:class:`beclab.bec.Potential` object.
+    """
 
     def __init__(self, components, interactions, losses=None, potential=None):
 
