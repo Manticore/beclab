@@ -385,7 +385,7 @@ if __name__ == '__main__':
 
         # FIXME: Currently not all steppers support cutoffs.
         if cutoff and stepper_cls not in (CDStepper, RK46NLStepper):
-            break
+            continue
 
         run_test(thr, stepper_cls, integration, cutoff=cutoff, no_losses=True, wigner=False)
         run_test(thr, stepper_cls, integration, cutoff=cutoff, wigner=False)
