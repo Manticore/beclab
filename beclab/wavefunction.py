@@ -148,7 +148,7 @@ class WavefunctionSetMetadata:
 
     .. py:attribute:: grid
 
-        A :py:class:`Grid` object.
+        A :py:class:`~beclab.grid.Grid` object.
 
     .. py:attribute:: representation
 

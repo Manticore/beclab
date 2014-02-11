@@ -7,6 +7,17 @@ BEC-specific wrappers
 
 .. autofunction:: box_for_tf
 
+
+Grids
+-----
+
+.. autoclass:: UniformGrid
+    :members:
+
+.. autoclass:: beclab.grid.Grid
+    :members:
+
+
 Potential
 ---------
 

@@ -5,7 +5,52 @@ import numpy
 from reikna.helpers import product
 
 
-class UniformGrid:
+class Grid:
+    """
+    The base class for simulation grids.
+
+    .. py:attribute:: box
+
+        A tuple with simulation box sizes.
+
+    .. py:attribute:: dimensions
+
+        The number of dimensions (the length of ``shape`` or ``box`` tuples).
+
+    .. py:attribute:: dV
+
+        The volume of a grid cell.
+
+    .. py:attribute:: dxs
+
+        A list of grid steps for each dimension.
+
+    .. py:attribute:: shape
+
+        A tuple with the grid shape.
+
+    .. py:attribute:: size
+
+        The total number of grid cells.
+
+    .. py:attribute:: xs
+
+        A list of ``dimensions`` numpy arrays containing grid cell coordinates for each dimension.
+    """
+    pass
+
+
+class UniformGrid(Grid):
+    """
+    Rectangular uniform grid.
+
+    :param shape: a tuple with the grid shape.
+    :param box: a tuple with the simulation box size (same length as ``shape``).
+
+    .. py:attribute:: V
+
+        The total volume of the simulation box.
+    """
 
     def __init__(self, shape, box):
         if isinstance(shape, int):
@@ -27,5 +72,4 @@ class UniformGrid:
         # number of cells and cell volume
         self.dV = product(self.dxs)
         self.size = product(self.shape)
-        self.modes = self.size
         self.V = product(self.box)

@@ -29,7 +29,7 @@ class Potential:
 
         where ``r_ctype`` is a realy type.
 
-        :param grid: a :py:class:`Grid` object.
+        :param grid: a :py:class:`~beclab.grid.Grid` object.
         :param components: a list of :py:class:`Component` objects.
         """
         raise NotImplementedError
@@ -38,7 +38,7 @@ class Potential:
         """
         Returns an array with the values of the potential for the given grid and components.
 
-        :param grid: a :py:class:`Grid` object.
+        :param grid: a :py:class:`~beclab.grid.Grid` object.
         :param components: a list of :py:class:`Component` objects.
         """
         raise NotImplementedError
@@ -205,11 +205,11 @@ class ThomasFermiGroundState:
 
     :param thr: a Reikna ``Thread``.
     :param dtype: the dtype of the generated wavefunction
-    :param grid: a :py:class:`Grid` object.
+    :param grid: a :py:class:`~beclab.grid.Grid` object.
     :param system: a :py:class:`System` object.
     :param cutoff: a :py:class:`Cutoff` object.
 
-    .. attribute:: wfs_meta
+    .. py:attribute:: wfs_meta
 
         A :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object representing
         the generated states.
@@ -275,13 +275,13 @@ class ImaginaryTimeGroundState:
 
     :param thr: a Reikna ``Thread``.
     :param dtype: the dtype of the generated wavefunction
-    :param grid: a :py:class:`Grid` object.
+    :param grid: a :py:class:`~beclab.grid.Grid` object.
     :param system: a :py:class:`System` object.
     :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
     :param cutoff: a :py:class:`Cutoff` object.
     :param verbose: whether do display additional information about the integration process.
 
-    .. attribute:: wfs_meta
+    .. py:attribute:: wfs_meta
 
         A :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object representing
         the generated states.
