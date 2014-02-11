@@ -2,7 +2,7 @@
 Beclab
 ******
 
-Under construction.
+A framework for numerical simulations of trapped BEC behavior.
 
 ********
 Contents
