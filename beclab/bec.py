@@ -207,7 +207,7 @@ class ThomasFermiGroundState:
     :param dtype: the dtype of the generated wavefunction
     :param grid: a :py:class:`~beclab.grid.Grid` object.
     :param system: a :py:class:`System` object.
-    :param cutoff: a :py:class:`Cutoff` object.
+    :param cutoff: a :py:class:`~beclab.cutoff.Cutoff` object.
 
     .. py:attribute:: wfs_meta
 
@@ -278,7 +278,7 @@ class ImaginaryTimeGroundState:
     :param grid: a :py:class:`~beclab.grid.Grid` object.
     :param system: a :py:class:`System` object.
     :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
-    :param cutoff: a :py:class:`Cutoff` object.
+    :param cutoff: a :py:class:`~beclab.cutoff.Cutoff` object.
     :param verbose: whether do display additional information about the integration process.
 
     .. py:attribute:: wfs_meta
@@ -383,7 +383,7 @@ class Integrator:
     :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
         Passed to :py:meth:`~beclab.integrator.Integrator.fixed_step` or
         :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
-    :param cutoff: a :py:class:`Cutoff` object.
+    :param cutoff: a :py:class:`~beclab.cutoff.Cutoff` object.
     :param profile: whether to synchronize with GPU before sampling.
         Passed to :py:meth:`~beclab.integrator.Integrator.fixed_step` or
         :py:meth:`~beclab.integrator.Integrator.adaptive_step`.

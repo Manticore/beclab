@@ -136,7 +136,7 @@ class WavefunctionSetMetadata:
 
     .. py:attribute:: cutoff
 
-        A :py:class:`Cutoff` object.
+        A :py:class:`~beclab.cutoff.Cutoff` object.
 
     .. py:attribute:: data
 

@@ -13,6 +13,7 @@ Grids
 
 .. autoclass:: UniformGrid
     :members:
+    :show-inheritance:
 
 .. autoclass:: beclab.grid.Grid
     :members:
@@ -26,6 +27,17 @@ Potential
 
 .. autoclass:: HarmonicPotential
     :show-inheritance:
+
+
+Cutoffs
+-------
+
+.. autoclass:: WavelengthCutoff
+    :members:
+    :show-inheritance:
+
+.. autoclass:: beclab.cutoff.Cutoff
+    :members:
 
 
 Ground states
