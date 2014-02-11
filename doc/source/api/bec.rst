@@ -76,3 +76,11 @@ Beam splitter
 -------------
 
 .. autoclass:: BeamSplitter
+
+
+Constants
+---------
+
+.. automodule:: beclab.constants
+    :members:
+

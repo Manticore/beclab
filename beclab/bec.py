@@ -30,7 +30,7 @@ class Potential:
         where ``r_ctype`` is a realy type.
 
         :param grid: a :py:class:`~beclab.grid.Grid` object.
-        :param components: a list of :py:class:`Component` objects.
+        :param components: a list of :py:class:`~beclab.constants.Component` objects.
         """
         raise NotImplementedError
 
@@ -39,7 +39,7 @@ class Potential:
         Returns an array with the values of the potential for the given grid and components.
 
         :param grid: a :py:class:`~beclab.grid.Grid` object.
-        :param components: a list of :py:class:`Component` objects.
+        :param components: a list of :py:class:`~beclab.constants.Component` objects.
         """
         raise NotImplementedError
 
@@ -163,7 +163,7 @@ class System:
             + \sum_{\mathbf{l} \in L} \kappa_{\mathbf{l}} \int d \mathbf{x}
             \mathcal{L}_{\mathbf{l}} \left[ \hat{\rho} \right].
 
-    :param components: a list of :py:class:`Component` objects.
+    :param components: a list of :py:class:`~beclab.constants.Component` objects.
     :param interactions: an array :math:`U_{jk}` with shape ``(len(components), len(components))``.
     :param losses: a list of tuples (:math:`\kappa_{\mathbf{l}}`, (:math:`l_1`, ...))
         for every loss source :math:`\mathbf{l}`.
