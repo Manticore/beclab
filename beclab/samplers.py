@@ -129,7 +129,7 @@ class EnergySampler(Sampler):
     """
     Bases: :py:class:`~beclab.integrator.Sampler`
 
-    Collects the total energy of a BEC.
+    Collects the total energy of a BEC (see :py:class:`beclab.meters.EnergyMeter` for details).
 
     :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
     :param system: the :py:class:`~beclab.System` object the wavefunction corresponds to.

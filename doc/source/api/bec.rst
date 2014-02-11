@@ -92,6 +92,14 @@ Filters
     :members:
 
 
+Meters
+------
+
+.. automodule:: beclab.meters
+    :members:
+    :special-members:
+
+
 Constants
 ---------
 

@@ -46,6 +46,11 @@ class _ReduceNorm(Computation):
 
 
 class PopulationMeter:
+    """
+    Measures the per-trajectory populations.
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    """
 
     def __init__(self, wfs_meta):
         thread = wfs_meta.thread
@@ -60,11 +65,22 @@ class PopulationMeter:
         self._out = thread.empty_like(self._meter.parameter.result)
 
     def __call__(self, wfs_data):
+        """
+        Returns a numpy array with the shape ``(trajectories, components)``
+        with component populations.
+        """
         self._meter(self._out, wfs_data)
         return self._out.get()
 
 
 class Density1DMeter:
+    """
+    Measures the projection of per-component density on a chosen axis
+    (in other words, integrates the density over all the other axes).
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param axis: the index of an axis to project to.
+    """
 
     def __init__(self, wfs_meta, axis=-1):
         thread = wfs_meta.thread
@@ -89,6 +105,10 @@ class Density1DMeter:
         self._out = thread.empty_like(self._meter.parameter.result)
 
     def __call__(self, wfs_data):
+        """
+        Returns a numpy array with the shape ``(trajectories, components, size)``
+        with the projected density.
+        """
         self._meter(self._out, wfs_data)
         return self._out.get()
 
@@ -222,6 +242,19 @@ class _EnergyMeter(Computation):
 
 
 class EnergyMeter:
+    r"""
+    Measures the energy of a BEC:
+
+    .. math::
+
+        E = \sum_{j=1}^C \int \Psi_j^* \left(
+                - \frac{\nabla^2}{2 m} + V_j
+                + \sum_{k=1}^C \frac{g_{jk}}{2} \vert \Psi_k \vert^2
+            \right) \Psi_j d\mathbf{x}.
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param system: the :py:class:`~beclab.System` object the wavefunction corresponds to.
+    """
 
     def __init__(self, wfs_meta, system):
         thread = wfs_meta.thread
