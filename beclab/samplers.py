@@ -6,6 +6,11 @@ from beclab.meters import EnergyMeter, PopulationMeter, Density1DMeter
 
 
 class PsiSampler(Sampler):
+    """
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Collects the wavefunction for each trajectory.
+    """
 
     def __init__(self):
         Sampler.__init__(self, no_mean=True, no_stderr=True)
@@ -15,6 +20,16 @@ class PsiSampler(Sampler):
 
 
 class PopulationSampler(Sampler):
+    """
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Collects the component populations (both mean and per-trajectory).
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param beam_splitter: a :py:class:`~beclab.BeamSplitter` object.
+        If given, it will be applied to the wavefunction before measuring populations.
+    :param theta: a rotation angle to pass to the beam splitter.
+    """
 
     def __init__(self, wfs_meta, beam_splitter=None, theta=0):
         Sampler.__init__(self)
@@ -37,6 +52,14 @@ class PopulationSampler(Sampler):
 
 
 class InteractionSampler(Sampler):
+    r"""
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Collects the integral interaction :math:`I = \int \Psi_1^* \Psi_2 d\mathbf{x}`
+    (both mean and per-component).
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    """
 
     def __init__(self, wfs_meta):
         Sampler.__init__(self)
@@ -49,6 +72,14 @@ class InteractionSampler(Sampler):
 
 
 class VisibilitySampler(Sampler):
+    r"""
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Collects the visibility :math:`V = 2 \int \Psi_1^* \Psi_2 d\mathbf{x} / (N_1 + N_2)`
+    (both mean and per-component).
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    """
 
     def __init__(self, wfs_meta):
         Sampler.__init__(self)
@@ -62,9 +93,20 @@ class VisibilitySampler(Sampler):
 
 
 class Density1DSampler(Sampler):
+    """
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Collects the 1D projection of component density (mean only).
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param axis: the number of an axis to project to.
+    :param beam_splitter: a :py:class:`~beclab.BeamSplitter` object.
+        If given, it will be applied to the wavefunction before measuring populations.
+    :param theta: a rotation angle to pass to the beam splitter.
+    """
 
     def __init__(self, wfs_meta, axis=-1, beam_splitter=None, theta=0):
-        Sampler.__init__(self)
+        Sampler.__init__(self, no_values=True)
         self._dmeter = Density1DMeter(wfs_meta, axis=axis)
         self._theta = theta
 
@@ -84,6 +126,14 @@ class Density1DSampler(Sampler):
 
 
 class EnergySampler(Sampler):
+    """
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Collects the total energy of a BEC.
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param system: the :py:class:`~beclab.System` object the wavefunction corresponds to.
+    """
 
     def __init__(self, wfs_meta, system):
         Sampler.__init__(self)
@@ -94,6 +144,13 @@ class EnergySampler(Sampler):
 
 
 class StoppingEnergySampler(Sampler):
+    """
+    Bases: :py:class:`~beclab.integrator.Sampler`
+
+    Same as :py:class:`EnergySampler`, but raises :py:class:`~beclab.integrator.StopIntegration`
+    when the relative difference of the newly collected sample
+    and the previous one is less than ``limit``.
+    """
 
     def __init__(self, wfs, system, limit=1e-6):
         Sampler.__init__(self)

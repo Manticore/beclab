@@ -78,6 +78,20 @@ Beam splitter
 .. autoclass:: BeamSplitter
 
 
+Samplers
+--------
+
+.. automodule:: beclab.samplers
+    :members:
+
+
+Filters
+--------
+
+.. automodule:: beclab.filters
+    :members:
+
+
 Constants
 ---------
 
