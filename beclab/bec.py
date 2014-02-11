@@ -187,6 +187,10 @@ class System:
 
 
 def box_for_tf(system, comp_num, N, pad=1.2):
+    """
+    Returns a tuple with the box sizes that can accommodate the Thomas-Fermi ground state of a BEC
+    with ``N`` particles made of component ``comp_num`` from the :py:class:`System` ``system``.
+    """
     m = system.components[comp_num].m
     g = system.interactions[comp_num, comp_num]
     mu = const.mu_tf_3d(system.potential.trap_frequencies, N, m, g)
@@ -196,6 +200,20 @@ def box_for_tf(system, comp_num, N, pad=1.2):
 
 
 class ThomasFermiGroundState:
+    """
+    Thomas-Fermi ground state generator.
+
+    :param thr: a Reikna ``Thread``.
+    :param dtype: the dtype of the generated wavefunction
+    :param grid: a :py:class:`Grid` object.
+    :param system: a :py:class:`System` object.
+    :param cutoff: a :py:class:`Cutoff` object.
+
+    .. attribute:: wfs_meta
+
+        A :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object representing
+        the generated states.
+    """
 
     def __init__(self, thr, dtype, grid, system, cutoff=None):
 
@@ -212,6 +230,12 @@ class ThomasFermiGroundState:
             cutoff=cutoff)
 
     def __call__(self, Ns):
+        """
+        Gererate a ground state with populations ``Ns = [N1, N2, ...]``.
+        The length of the list must be equal to the number of components
+        in the ``system`` given to the constructor.
+        Returns a :py:class:`WavefunctionSet` object.
+        """
 
         assert len(Ns) == len(self.system.components)
 
@@ -246,6 +270,22 @@ class ThomasFermiGroundState:
 
 
 class ImaginaryTimeGroundState:
+    """
+    Ground state generator based on imaginary time propagation.
+
+    :param thr: a Reikna ``Thread``.
+    :param dtype: the dtype of the generated wavefunction
+    :param grid: a :py:class:`Grid` object.
+    :param system: a :py:class:`System` object.
+    :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
+    :param cutoff: a :py:class:`Cutoff` object.
+    :param verbose: whether do display additional information about the integration process.
+
+    .. attribute:: wfs_meta
+
+        A :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object representing
+        the generated states.
+    """
 
     def __init__(self, thr, dtype, grid, system, stepper_cls=RK46NLStepper,
             cutoff=None, verbose=True):
@@ -281,6 +321,31 @@ class ImaginaryTimeGroundState:
 
     def __call__(self, Ns, E_diff=1e-9, E_conv=1e-9, sample_time=1e-3,
             samplers=None, return_info=False):
+        """
+        Gererate a ground state with given populations.
+        The propagation in imaginary time will continue until the difference in energy
+        between two successive samples is larger than the given threshold.
+
+        :param Ns: a list of target populations for each component.
+            The length of the list must be equal to the number of components
+            in the ``system`` given to the constructor.
+        :param E_diff: a relative energy difference threshold.
+        :param E_conv: a convergence threshold for the propagation.
+            Convergence is estimated as the relative difference between the values of energy
+            after propagation with normal and double step for ``sample_time``
+            (that is, the same as in :py:meth:`~beclab.integrator.Integrator.adaptive_step`).
+        :param sample_time: time between successive sampling of energy.
+        :param samplers: additional samplers (:py:class:`~beclab.integrator.Sampler` objects)
+            to invoke during propagation.
+        :param return_info: whether to return additional information about the propagation
+            (see the return section below).
+        :returns: if ``return_info == False``, returns a :py:class:`WavefunctionSet` object.
+            Otherwise returns a tuple ``(wfs, result, info)``, where
+            ``wfs`` is a :py:class:`WavefunctionSet` object,
+            and the last two are the result data structure and
+            :py:class:`~beclab.integrator.IntegrationInfo` object, same as the ones
+            returned by :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
+        """
 
         # Initial TF state
         psi = self.tf_gen(Ns)
@@ -309,14 +374,30 @@ class ImaginaryTimeGroundState:
 
 
 class Integrator:
+    """
+    BEC integration class.
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param system: a :py:class:`System` object.
+    :param seed: a RNG seed to use when generating Wiener processes.
+    :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
+        Passed to :py:meth:`~beclab.integrator.Integrator.fixed_step` or
+        :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
+    :param cutoff: a :py:class:`Cutoff` object.
+    :param profile: whether to synchronize with GPU before sampling.
+        Passed to :py:meth:`~beclab.integrator.Integrator.fixed_step` or
+        :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
+    """
 
     def __init__(self, wfs_meta, system,
-            wigner=False, seed=None, stepper_cls=RK46NLStepper, trajectories=1,
+            seed=None, stepper_cls=RK46NLStepper,
             cutoff=None, profile=False):
 
         thr = wfs_meta.thread
         dtype = wfs_meta.dtype
         grid = wfs_meta.grid
+
+        wigner = (wfs_meta.representation == REPR_WIGNER)
 
         if wigner:
             corrections = -(
@@ -350,7 +431,7 @@ class Integrator:
         stepper = stepper_cls(
             grid.shape, grid.box, drift,
             kinetic_coeff=-1j / const.HBAR * system.kinetic_coeff,
-            trajectories=trajectories,
+            trajectories=wfs_meta.trajectories,
             diffusion=diffusion,
             ksquared_cutoff=ksquared_cutoff)
 
@@ -365,7 +446,19 @@ class Integrator:
             profile=profile)
 
     def fixed_step(self, wfs, *args, **kwds):
+        """
+        Start integration with fixed step for the :py:class:`beclab.WavefunctionSet` ``wfs``.
+        Other parameters and return values are the same as in
+        :py:meth:`~beclab.integrator.Integrator.fixed_step`
+        (except that ``data`` is replaced by ``wfs``).
+        """
         return self._integrator.fixed_step(wfs.data, *args, **kwds)
 
     def adaptive_step(self, wfs, *args, **kwds):
+        """
+        Start integration with adaptive step for the :py:class:`beclab.WavefunctionSet` ``wfs``.
+        Other parameters and return values are the same as in
+        :py:meth:`~beclab.integrator.Integrator.adaptive_step`
+        (except that ``data`` is replaced by ``wfs``).
+        """
         return self._integrator.adaptive_step(wfs.data, *args, **kwds)

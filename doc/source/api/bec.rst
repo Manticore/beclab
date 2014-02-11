@@ -5,6 +5,7 @@ BEC-specific wrappers
 
 .. autoclass:: System
 
+.. autofunction:: box_for_tf
 
 Potential
 ---------
@@ -14,6 +15,23 @@ Potential
 
 .. autoclass:: HarmonicPotential
     :show-inheritance:
+
+
+Ground states
+-------------
+
+.. autoclass:: ThomasFermiGroundState
+    :members: __call__
+
+.. autoclass:: ImaginaryTimeGroundState
+    :members: __call__
+
+
+Integration
+-----------
+
+.. autoclass:: Integrator
+    :members:
 
 
 Wavefunctions
