@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>BEC &mdash; beclab 0.1.0+dev documentation</title>
+    <title>BEC-specific wrappers &mdash; beclab 0.1.0+dev documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -35,6 +35,9 @@
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="integrator.html" title="Integrator"
              accesskey="P">previous</a> |</li>
         <li><a href="../index.html">beclab 0.1.0+dev documentation</a> &raquo;</li> 
@@ -46,8 +49,962 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="bec">
-<h1>BEC<a class="headerlink" href="#bec" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-beclab">
+<span id="bec-specific-wrappers"></span><h1>BEC-specific wrappers<a class="headerlink" href="#module-beclab" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="beclab.System">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">System</tt><big>(</big><em>components</em>, <em>interactions</em>, <em>losses=None</em>, <em>potential=None</em><big>)</big><a class="headerlink" href="#beclab.System" title="Permalink to this definition">¶</a></dt>
+<dd><p>Main descriptor of a BEC system with the Hamiltonian</p>
+<div class="math">
+\[\hat{H} =
+    \int d \mathbf{x} \sum_{j=1}^C \sum_{k=1}^C \left\{
+        \hat{\Psi}_j^{\dagger} \left(
+            -\frac{\hbar^2}{2m_j} \nabla^2 + V_j(\mathbf{x})
+        \right) \delta_{jk} \hat{\Psi}_k
+        + \frac{U_{jk}}{2} \int d \mathbf{x}^\prime
+            \hat{\Psi}_j^\dagger \hat{\Psi}_k^{\prime\dagger}
+            \hat{\Psi}_j \hat{\Psi}_k^\prime
+    \right\},\]</div>
+<p>and the master equation</p>
+<div class="math">
+\[\frac{d \hat{\rho}}{dt}
+=  - \frac{i}{\hbar} \left[ \hat{H}, \hat{\rho} \right]
+    + \sum_{\mathbf{l} \in L} \kappa_{\mathbf{l}} \int d \mathbf{x}
+    \mathcal{L}_{\mathbf{l}} \left[ \hat{\rho} \right].\]</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>components</strong> &#8211; a list of <a class="reference internal" href="#beclab.constants.Component" title="beclab.constants.Component"><tt class="xref py py-class docutils literal"><span class="pre">Component</span></tt></a> objects.</li>
+<li><strong>interactions</strong> &#8211; an array <span class="math">\(U_{jk}\)</span> with shape <tt class="docutils literal"><span class="pre">(len(components),</span> <span class="pre">len(components))</span></tt>.</li>
+<li><strong>losses</strong> &#8211; a list of tuples (<span class="math">\(\kappa_{\mathbf{l}}\)</span>, (<span class="math">\(l_1\)</span>, ...))
+for every loss source <span class="math">\(\mathbf{l}\)</span>.
+Note that these are not the experimental loss coefficients, which can be calculated as
+<span class="math">\(\gamma_{j,\mathbf{l}} \equiv 2 l_j \kappa_{\mathbf{l}}\)</span>.</li>
+<li><strong>potential</strong> &#8211; a <a class="reference internal" href="#beclab.bec.Potential" title="beclab.bec.Potential"><tt class="xref py py-class docutils literal"><span class="pre">beclab.bec.Potential</span></tt></a> object.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.box_for_tf">
+<tt class="descclassname">beclab.</tt><tt class="descname">box_for_tf</tt><big>(</big><em>system</em>, <em>comp_num</em>, <em>N</em>, <em>pad=1.2</em><big>)</big><a class="headerlink" href="#beclab.box_for_tf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a tuple with the box sizes that can accommodate the Thomas-Fermi ground state of a BEC
+with <tt class="docutils literal"><span class="pre">N</span></tt> particles made of component <tt class="docutils literal"><span class="pre">comp_num</span></tt> from the <a class="reference internal" href="#beclab.System" title="beclab.System"><tt class="xref py py-class docutils literal"><span class="pre">System</span></tt></a> <tt class="docutils literal"><span class="pre">system</span></tt>.</p>
+</dd></dl>
+
+<div class="section" id="grids">
+<h2>Grids<a class="headerlink" href="#grids" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.UniformGrid">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">UniformGrid</tt><big>(</big><em>shape</em>, <em>box</em><big>)</big><a class="headerlink" href="#beclab.UniformGrid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#beclab.grid.Grid" title="beclab.grid.Grid"><tt class="xref py py-class docutils literal"><span class="pre">beclab.grid.Grid</span></tt></a></p>
+<p>Rectangular uniform grid.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>shape</strong> &#8211; a tuple with the grid shape.</li>
+<li><strong>box</strong> &#8211; a tuple with the simulation box size (same length as <tt class="docutils literal"><span class="pre">shape</span></tt>).</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="beclab.UniformGrid.V">
+<tt class="descname">V</tt><a class="headerlink" href="#beclab.UniformGrid.V" title="Permalink to this definition">¶</a></dt>
+<dd><p>The total volume of the simulation box.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.grid.Grid">
+<em class="property">class </em><tt class="descclassname">beclab.grid.</tt><tt class="descname">Grid</tt><a class="headerlink" href="#beclab.grid.Grid" title="Permalink to this definition">¶</a></dt>
+<dd><p>The base class for simulation grids.</p>
+<dl class="attribute">
+<dt id="beclab.Grid.box">
+<tt class="descname">box</tt><a class="headerlink" href="#beclab.Grid.box" title="Permalink to this definition">¶</a></dt>
+<dd><p>A tuple with simulation box sizes.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.Grid.dimensions">
+<tt class="descname">dimensions</tt><a class="headerlink" href="#beclab.Grid.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd><p>The number of dimensions (the length of <tt class="docutils literal"><span class="pre">shape</span></tt> or <tt class="docutils literal"><span class="pre">box</span></tt> tuples).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.Grid.dV">
+<tt class="descname">dV</tt><a class="headerlink" href="#beclab.Grid.dV" title="Permalink to this definition">¶</a></dt>
+<dd><p>The volume of a grid cell.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.Grid.dxs">
+<tt class="descname">dxs</tt><a class="headerlink" href="#beclab.Grid.dxs" title="Permalink to this definition">¶</a></dt>
+<dd><p>A list of grid steps for each dimension.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.Grid.shape">
+<tt class="descname">shape</tt><a class="headerlink" href="#beclab.Grid.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>A tuple with the grid shape.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.Grid.size">
+<tt class="descname">size</tt><a class="headerlink" href="#beclab.Grid.size" title="Permalink to this definition">¶</a></dt>
+<dd><p>The total number of grid cells.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.Grid.xs">
+<tt class="descname">xs</tt><a class="headerlink" href="#beclab.Grid.xs" title="Permalink to this definition">¶</a></dt>
+<dd><p>A list of <tt class="docutils literal"><span class="pre">dimensions</span></tt> numpy arrays containing grid cell coordinates for each dimension.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="potential">
+<h2>Potential<a class="headerlink" href="#potential" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.bec.Potential">
+<em class="property">class </em><tt class="descclassname">beclab.bec.</tt><tt class="descname">Potential</tt><a class="headerlink" href="#beclab.bec.Potential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Abstract base class of an external potential.</p>
+<dl class="method">
+<dt id="beclab.bec.Potential.get_array">
+<tt class="descname">get_array</tt><big>(</big><em>grid</em>, <em>components</em><big>)</big><a class="headerlink" href="#beclab.bec.Potential.get_array" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns an array with the values of the potential for the given grid and components.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>grid</strong> &#8211; a <a class="reference internal" href="#beclab.grid.Grid" title="beclab.grid.Grid"><tt class="xref py py-class docutils literal"><span class="pre">Grid</span></tt></a> object.</li>
+<li><strong>components</strong> &#8211; a list of <a class="reference internal" href="#beclab.constants.Component" title="beclab.constants.Component"><tt class="xref py py-class docutils literal"><span class="pre">Component</span></tt></a> objects.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="beclab.bec.Potential.get_module">
+<tt class="descname">get_module</tt><big>(</big><em>dtype</em>, <em>grid</em>, <em>components</em><big>)</big><a class="headerlink" href="#beclab.bec.Potential.get_module" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the module calculating the value of the potential.
+The module must contain functions with signatures</p>
+<div class="highlight-python"><div class="highlight"><pre>INLINE WITHIN_KERNEL ${r_ctype} ${prefix}${comp_num}(
+    int idx0, ..., ${r_ctype} t)
+</pre></div>
+</div>
+<p>where <tt class="docutils literal"><span class="pre">r_ctype</span></tt> is a realy type.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>grid</strong> &#8211; a <a class="reference internal" href="#beclab.grid.Grid" title="beclab.grid.Grid"><tt class="xref py py-class docutils literal"><span class="pre">Grid</span></tt></a> object.</li>
+<li><strong>components</strong> &#8211; a list of <a class="reference internal" href="#beclab.constants.Component" title="beclab.constants.Component"><tt class="xref py py-class docutils literal"><span class="pre">Component</span></tt></a> objects.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.HarmonicPotential">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">HarmonicPotential</tt><big>(</big><em>freqs</em>, <em>displacements=None</em><big>)</big><a class="headerlink" href="#beclab.HarmonicPotential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#beclab.bec.Potential" title="beclab.bec.Potential"><tt class="xref py py-class docutils literal"><span class="pre">beclab.bec.Potential</span></tt></a></p>
+<p>A class representing a multidimensional harmonic potential:</p>
+<div class="math">
+\[V_i = \frac{m_i}{2} \sum_{d=1}^D (2 \pi f_d)^2 (x_d + l_{i,d})^2\]</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>freqs</strong> &#8211; a tuple of trap frequencies (in Hz).</li>
+<li><strong>displacements</strong> &#8211; a list of tuples <tt class="docutils literal"><span class="pre">(component,</span> <span class="pre">dimension,</span> <span class="pre">displacement)</span></tt>,
+specifying the displacement <span class="math">\(l_{i,d}\)</span> for the given component <span class="math">\(i\)</span>
+and the dimension <span class="math">\(d\)</span>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="cutoffs">
+<h2>Cutoffs<a class="headerlink" href="#cutoffs" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.WavelengthCutoff">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">WavelengthCutoff</tt><big>(</big><em>ksquared</em><big>)</big><a class="headerlink" href="#beclab.WavelengthCutoff" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#beclab.cutoff.Cutoff" title="beclab.cutoff.Cutoff"><tt class="xref py py-class docutils literal"><span class="pre">beclab.cutoff.Cutoff</span></tt></a></p>
+<p>Cutoff based on wave lengths in a plane wave basis (essentially, an energy cutoff).
+All the modes with <span class="math">\(k^2 &gt; \mathrm{cutoff}\)</span> are projected out.</p>
+<dl class="classmethod">
+<dt id="beclab.WavelengthCutoff.for_energy">
+<em class="property">classmethod </em><tt class="descname">for_energy</tt><big>(</big><em>energy</em>, <em>component</em><big>)</big><a class="headerlink" href="#beclab.WavelengthCutoff.for_energy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the cutoff expressed in terms of energy for the given component.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="beclab.WavelengthCutoff.padded">
+<em class="property">classmethod </em><tt class="descname">padded</tt><big>(</big><em>grid</em>, <em>pad=1</em><big>)</big><a class="headerlink" href="#beclab.WavelengthCutoff.padded" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the cutoff calculated to ensure the ellipse of active modes in a rectangular grid
+is padded.
+<tt class="docutils literal"><span class="pre">pad</span> <span class="pre">=</span> <span class="pre">1</span></tt> means that the ellipse is touching the sides of the box,
+<tt class="docutils literal"><span class="pre">pad</span> <span class="pre">=</span> <span class="pre">4</span></tt> corresponds to the &#8220;safe&#8221; padding used to avoid aliasing problems during FFT
+transformations.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.cutoff.Cutoff">
+<em class="property">class </em><tt class="descclassname">beclab.cutoff.</tt><tt class="descname">Cutoff</tt><a class="headerlink" href="#beclab.cutoff.Cutoff" title="Permalink to this definition">¶</a></dt>
+<dd><p>The base class for mode cutoffs.</p>
+<dl class="method">
+<dt id="beclab.cutoff.Cutoff.get_mask">
+<tt class="descname">get_mask</tt><big>(</big><em>grid</em><big>)</big><a class="headerlink" href="#beclab.cutoff.Cutoff.get_mask" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a numpy array with the cutoff mask for the given <tt class="docutils literal"><span class="pre">grid</span></tt>.
+Elements of the array are <tt class="docutils literal"><span class="pre">0</span></tt> in places of the modes that are projected out,
+and <tt class="docutils literal"><span class="pre">1</span></tt> otherwise.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="beclab.cutoff.Cutoff.get_modes_number">
+<tt class="descname">get_modes_number</tt><big>(</big><em>grid</em><big>)</big><a class="headerlink" href="#beclab.cutoff.Cutoff.get_modes_number" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total number of active modes for the given <tt class="docutils literal"><span class="pre">grid</span></tt>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="ground-states">
+<h2>Ground states<a class="headerlink" href="#ground-states" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.ThomasFermiGroundState">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">ThomasFermiGroundState</tt><big>(</big><em>thr</em>, <em>dtype</em>, <em>grid</em>, <em>system</em>, <em>cutoff=None</em><big>)</big><a class="headerlink" href="#beclab.ThomasFermiGroundState" title="Permalink to this definition">¶</a></dt>
+<dd><p>Thomas-Fermi ground state generator.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>thr</strong> &#8211; a Reikna <tt class="docutils literal"><span class="pre">Thread</span></tt>.</li>
+<li><strong>dtype</strong> &#8211; the dtype of the generated wavefunction</li>
+<li><strong>grid</strong> &#8211; a <a class="reference internal" href="#beclab.grid.Grid" title="beclab.grid.Grid"><tt class="xref py py-class docutils literal"><span class="pre">Grid</span></tt></a> object.</li>
+<li><strong>system</strong> &#8211; a <a class="reference internal" href="#beclab.System" title="beclab.System"><tt class="xref py py-class docutils literal"><span class="pre">System</span></tt></a> object.</li>
+<li><strong>cutoff</strong> &#8211; a <a class="reference internal" href="#beclab.cutoff.Cutoff" title="beclab.cutoff.Cutoff"><tt class="xref py py-class docutils literal"><span class="pre">Cutoff</span></tt></a> object.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="beclab.ThomasFermiGroundState.wfs_meta">
+<tt class="descname">wfs_meta</tt><a class="headerlink" href="#beclab.ThomasFermiGroundState.wfs_meta" title="Permalink to this definition">¶</a></dt>
+<dd><p>A <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object representing
+the generated states.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="beclab.ThomasFermiGroundState.__call__">
+<tt class="descname">__call__</tt><big>(</big><em>Ns</em><big>)</big><a class="headerlink" href="#beclab.ThomasFermiGroundState.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gererate a ground state with populations <tt class="docutils literal"><span class="pre">Ns</span> <span class="pre">=</span> <span class="pre">[N1,</span> <span class="pre">N2,</span> <span class="pre">...]</span></tt>.
+The length of the list must be equal to the number of components
+in the <tt class="docutils literal"><span class="pre">system</span></tt> given to the constructor.
+Returns a <a class="reference internal" href="#beclab.WavefunctionSet" title="beclab.WavefunctionSet"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSet</span></tt></a> object.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.ImaginaryTimeGroundState">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">ImaginaryTimeGroundState</tt><big>(</big><em>thr</em>, <em>dtype</em>, <em>grid</em>, <em>system</em>, <em>stepper_cls=&lt;class beclab.integrator.rk46nl_stepper.RK46NLStepper at 0x103a48c18&gt;</em>, <em>cutoff=None</em>, <em>verbose=True</em><big>)</big><a class="headerlink" href="#beclab.ImaginaryTimeGroundState" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ground state generator based on imaginary time propagation.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>thr</strong> &#8211; a Reikna <tt class="docutils literal"><span class="pre">Thread</span></tt>.</li>
+<li><strong>dtype</strong> &#8211; the dtype of the generated wavefunction</li>
+<li><strong>grid</strong> &#8211; a <a class="reference internal" href="#beclab.grid.Grid" title="beclab.grid.Grid"><tt class="xref py py-class docutils literal"><span class="pre">Grid</span></tt></a> object.</li>
+<li><strong>system</strong> &#8211; a <a class="reference internal" href="#beclab.System" title="beclab.System"><tt class="xref py py-class docutils literal"><span class="pre">System</span></tt></a> object.</li>
+<li><strong>stepper_cls</strong> &#8211; one of the <a class="reference internal" href="integrator.html#beclab.integrator.Stepper" title="beclab.integrator.Stepper"><tt class="xref py py-class docutils literal"><span class="pre">Stepper</span></tt></a> classes.</li>
+<li><strong>cutoff</strong> &#8211; a <a class="reference internal" href="#beclab.cutoff.Cutoff" title="beclab.cutoff.Cutoff"><tt class="xref py py-class docutils literal"><span class="pre">Cutoff</span></tt></a> object.</li>
+<li><strong>verbose</strong> &#8211; whether do display additional information about the integration process.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="beclab.ImaginaryTimeGroundState.wfs_meta">
+<tt class="descname">wfs_meta</tt><a class="headerlink" href="#beclab.ImaginaryTimeGroundState.wfs_meta" title="Permalink to this definition">¶</a></dt>
+<dd><p>A <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object representing
+the generated states.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="beclab.ImaginaryTimeGroundState.__call__">
+<tt class="descname">__call__</tt><big>(</big><em>Ns</em>, <em>E_diff=1e-09</em>, <em>E_conv=1e-09</em>, <em>sample_time=0.001</em>, <em>samplers=None</em>, <em>return_info=False</em><big>)</big><a class="headerlink" href="#beclab.ImaginaryTimeGroundState.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gererate a ground state with given populations.
+The propagation in imaginary time will continue until the difference in energy
+between two successive samples is larger than the given threshold.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>Ns</strong> &#8211; a list of target populations for each component.
+The length of the list must be equal to the number of components
+in the <tt class="docutils literal"><span class="pre">system</span></tt> given to the constructor.</li>
+<li><strong>E_diff</strong> &#8211; a relative energy difference threshold.</li>
+<li><strong>E_conv</strong> &#8211; a convergence threshold for the propagation.
+Convergence is estimated as the relative difference between the values of energy
+after propagation with normal and double step for <tt class="docutils literal"><span class="pre">sample_time</span></tt>
+(that is, the same as in <a class="reference internal" href="integrator.html#beclab.integrator.Integrator.adaptive_step" title="beclab.integrator.Integrator.adaptive_step"><tt class="xref py py-meth docutils literal"><span class="pre">adaptive_step()</span></tt></a>).</li>
+<li><strong>sample_time</strong> &#8211; time between successive sampling of energy.</li>
+<li><strong>samplers</strong> &#8211; additional samplers (<a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a> objects)
+to invoke during propagation.</li>
+<li><strong>return_info</strong> &#8211; whether to return additional information about the propagation
+(see the return section below).</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">if <tt class="docutils literal"><span class="pre">return_info</span> <span class="pre">==</span> <span class="pre">False</span></tt>, returns a <a class="reference internal" href="#beclab.WavefunctionSet" title="beclab.WavefunctionSet"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSet</span></tt></a> object.
+Otherwise returns a tuple <tt class="docutils literal"><span class="pre">(wfs,</span> <span class="pre">result,</span> <span class="pre">info)</span></tt>, where
+<tt class="docutils literal"><span class="pre">wfs</span></tt> is a <a class="reference internal" href="#beclab.WavefunctionSet" title="beclab.WavefunctionSet"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSet</span></tt></a> object,
+and the last two are the result data structure and
+<a class="reference internal" href="integrator.html#beclab.integrator.IntegrationInfo" title="beclab.integrator.IntegrationInfo"><tt class="xref py py-class docutils literal"><span class="pre">IntegrationInfo</span></tt></a> object, same as the ones
+returned by <a class="reference internal" href="integrator.html#beclab.integrator.Integrator.adaptive_step" title="beclab.integrator.Integrator.adaptive_step"><tt class="xref py py-meth docutils literal"><span class="pre">adaptive_step()</span></tt></a>.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="integration">
+<h2>Integration<a class="headerlink" href="#integration" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.Integrator">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">Integrator</tt><big>(</big><em>wfs_meta</em>, <em>system</em>, <em>seed=None</em>, <em>stepper_cls=&lt;class beclab.integrator.rk46nl_stepper.RK46NLStepper at 0x103a48c18&gt;</em>, <em>cutoff=None</em>, <em>profile=False</em><big>)</big><a class="headerlink" href="#beclab.Integrator" title="Permalink to this definition">¶</a></dt>
+<dd><p>BEC integration class.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>system</strong> &#8211; a <a class="reference internal" href="#beclab.System" title="beclab.System"><tt class="xref py py-class docutils literal"><span class="pre">System</span></tt></a> object.</li>
+<li><strong>seed</strong> &#8211; a RNG seed to use when generating Wiener processes.</li>
+<li><strong>stepper_cls</strong> &#8211; one of the <a class="reference internal" href="integrator.html#beclab.integrator.Stepper" title="beclab.integrator.Stepper"><tt class="xref py py-class docutils literal"><span class="pre">Stepper</span></tt></a> classes.
+Passed to <a class="reference internal" href="integrator.html#beclab.integrator.Integrator.fixed_step" title="beclab.integrator.Integrator.fixed_step"><tt class="xref py py-meth docutils literal"><span class="pre">fixed_step()</span></tt></a> or
+<a class="reference internal" href="integrator.html#beclab.integrator.Integrator.adaptive_step" title="beclab.integrator.Integrator.adaptive_step"><tt class="xref py py-meth docutils literal"><span class="pre">adaptive_step()</span></tt></a>.</li>
+<li><strong>cutoff</strong> &#8211; a <a class="reference internal" href="#beclab.cutoff.Cutoff" title="beclab.cutoff.Cutoff"><tt class="xref py py-class docutils literal"><span class="pre">Cutoff</span></tt></a> object.</li>
+<li><strong>profile</strong> &#8211; whether to synchronize with GPU before sampling.
+Passed to <a class="reference internal" href="integrator.html#beclab.integrator.Integrator.fixed_step" title="beclab.integrator.Integrator.fixed_step"><tt class="xref py py-meth docutils literal"><span class="pre">fixed_step()</span></tt></a> or
+<a class="reference internal" href="integrator.html#beclab.integrator.Integrator.adaptive_step" title="beclab.integrator.Integrator.adaptive_step"><tt class="xref py py-meth docutils literal"><span class="pre">adaptive_step()</span></tt></a>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="beclab.Integrator.adaptive_step">
+<tt class="descname">adaptive_step</tt><big>(</big><em>wfs</em>, <em>*args</em>, <em>**kwds</em><big>)</big><a class="headerlink" href="#beclab.Integrator.adaptive_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start integration with adaptive step for the <a class="reference internal" href="#beclab.WavefunctionSet" title="beclab.WavefunctionSet"><tt class="xref py py-class docutils literal"><span class="pre">beclab.WavefunctionSet</span></tt></a> <tt class="docutils literal"><span class="pre">wfs</span></tt>.
+Other parameters and return values are the same as in
+<a class="reference internal" href="integrator.html#beclab.integrator.Integrator.adaptive_step" title="beclab.integrator.Integrator.adaptive_step"><tt class="xref py py-meth docutils literal"><span class="pre">adaptive_step()</span></tt></a>
+(except that <tt class="docutils literal"><span class="pre">data</span></tt> is replaced by <tt class="docutils literal"><span class="pre">wfs</span></tt>).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="beclab.Integrator.fixed_step">
+<tt class="descname">fixed_step</tt><big>(</big><em>wfs</em>, <em>*args</em>, <em>**kwds</em><big>)</big><a class="headerlink" href="#beclab.Integrator.fixed_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start integration with fixed step for the <a class="reference internal" href="#beclab.WavefunctionSet" title="beclab.WavefunctionSet"><tt class="xref py py-class docutils literal"><span class="pre">beclab.WavefunctionSet</span></tt></a> <tt class="docutils literal"><span class="pre">wfs</span></tt>.
+Other parameters and return values are the same as in
+<a class="reference internal" href="integrator.html#beclab.integrator.Integrator.fixed_step" title="beclab.integrator.Integrator.fixed_step"><tt class="xref py py-meth docutils literal"><span class="pre">fixed_step()</span></tt></a>
+(except that <tt class="docutils literal"><span class="pre">data</span></tt> is replaced by <tt class="docutils literal"><span class="pre">wfs</span></tt>).</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="wavefunctions">
+<h2>Wavefunctions<a class="headerlink" href="#wavefunctions" title="Permalink to this headline">¶</a></h2>
+<dl class="data">
+<dt id="beclab.REPR_CLASSICAL">
+<tt class="descclassname">beclab.</tt><tt class="descname">REPR_CLASSICAL</tt><em class="property"> = 'classical'</em><a class="headerlink" href="#beclab.REPR_CLASSICAL" title="Permalink to this definition">¶</a></dt>
+<dd><p>str(object=&#8217;&#8216;) -&gt; string</p>
+<p>Return a nice string representation of the object.
+If the argument is a string, the return value is the same object.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.REPR_WIGNER">
+<tt class="descclassname">beclab.</tt><tt class="descname">REPR_WIGNER</tt><em class="property"> = 'Wigner'</em><a class="headerlink" href="#beclab.REPR_WIGNER" title="Permalink to this definition">¶</a></dt>
+<dd><p>str(object=&#8217;&#8216;) -&gt; string</p>
+<p>Return a nice string representation of the object.
+If the argument is a string, the return value is the same object.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.REPR_POSITIVE_P">
+<tt class="descclassname">beclab.</tt><tt class="descname">REPR_POSITIVE_P</tt><em class="property"> = 'positive-P'</em><a class="headerlink" href="#beclab.REPR_POSITIVE_P" title="Permalink to this definition">¶</a></dt>
+<dd><p>str(object=&#8217;&#8216;) -&gt; string</p>
+<p>Return a nice string representation of the object.
+If the argument is a string, the return value is the same object.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.wavefunction.WavefunctionSetMetadata">
+<em class="property">class </em><tt class="descclassname">beclab.wavefunction.</tt><tt class="descname">WavefunctionSetMetadata</tt><big>(</big><em>thread</em>, <em>dtype</em>, <em>grid</em>, <em>components=1</em>, <em>trajectories=1</em>, <em>representation='classical'</em>, <em>cutoff=None</em><big>)</big><a class="headerlink" href="#beclab.wavefunction.WavefunctionSetMetadata" title="Permalink to this definition">¶</a></dt>
+<dd><p>Metadata for a wavefunction container object.</p>
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.components">
+<tt class="descname">components</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.components" title="Permalink to this definition">¶</a></dt>
+<dd><p>The number of components in this wavefunction.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.cutoff">
+<tt class="descname">cutoff</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.cutoff" title="Permalink to this definition">¶</a></dt>
+<dd><p>A <a class="reference internal" href="#beclab.cutoff.Cutoff" title="beclab.cutoff.Cutoff"><tt class="xref py py-class docutils literal"><span class="pre">Cutoff</span></tt></a> object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.data">
+<tt class="descname">data</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A Reikna <tt class="docutils literal"><span class="pre">Type</span></tt> object with the container array metadata.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.dtype">
+<tt class="descname">dtype</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>A <tt class="docutils literal"><span class="pre">numpy.dtype</span></tt> object of the container data type.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.grid">
+<tt class="descname">grid</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.grid" title="Permalink to this definition">¶</a></dt>
+<dd><p>A <a class="reference internal" href="#beclab.grid.Grid" title="beclab.grid.Grid"><tt class="xref py py-class docutils literal"><span class="pre">Grid</span></tt></a> object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.representation">
+<tt class="descname">representation</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.representation" title="Permalink to this definition">¶</a></dt>
+<dd><p>One of <a class="reference internal" href="#beclab.REPR_CLASSICAL" title="beclab.REPR_CLASSICAL"><tt class="xref py py-data docutils literal"><span class="pre">REPR_CLASSICAL</span></tt></a>, <a class="reference internal" href="#beclab.REPR_WIGNER" title="beclab.REPR_WIGNER"><tt class="xref py py-data docutils literal"><span class="pre">REPR_WIGNER</span></tt></a>, <a class="reference internal" href="#beclab.REPR_POSITIVE_P" title="beclab.REPR_POSITIVE_P"><tt class="xref py py-data docutils literal"><span class="pre">REPR_POSITIVE_P</span></tt></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.shape">
+<tt class="descname">shape</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>A tuple with the full shape of the data container.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.thread">
+<tt class="descname">thread</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.thread" title="Permalink to this definition">¶</a></dt>
+<dd><p>A Reikna <tt class="docutils literal"><span class="pre">Thread</span></tt> object the wavefunction is connected to.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.WavefunctionSetMetadata.trajectories">
+<tt class="descname">trajectories</tt><a class="headerlink" href="#beclab.WavefunctionSetMetadata.trajectories" title="Permalink to this definition">¶</a></dt>
+<dd><p>The number of independent wavefunctions in this container.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.WavefunctionSet">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">WavefunctionSet</tt><big>(</big><em>thread</em>, <em>dtype</em>, <em>grid</em>, <em>components=1</em>, <em>trajectories=1</em>, <em>representation='classical'</em>, <em>cutoff=None</em><big>)</big><a class="headerlink" href="#beclab.WavefunctionSet" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">beclab.wavefunction.WavefunctionSetMetadata</span></tt></a></p>
+<p>Wavefunction container.</p>
+<dl class="attribute">
+<dt id="beclab.WavefunctionSet.data">
+<tt class="descname">data</tt><a class="headerlink" href="#beclab.WavefunctionSet.data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A Reikna <tt class="docutils literal"><span class="pre">Array</span></tt> object.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="beam-splitter">
+<h2>Beam splitter<a class="headerlink" href="#beam-splitter" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.BeamSplitter">
+<em class="property">class </em><tt class="descclassname">beclab.</tt><tt class="descname">BeamSplitter</tt><big>(</big><em>wfs_meta</em>, <em>comp1_num=0</em>, <em>comp2_num=1</em>, <em>starting_phase=0</em>, <em>f_detuning=0</em>, <em>f_rabi=0</em>, <em>seed=None</em><big>)</big><a class="headerlink" href="#beclab.BeamSplitter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Beam splitter for a multi-component BEC.
+The effect of an oscillator is approximated by the application of the matrix</p>
+<div class="math">
+\[\begin{split}\begin{pmatrix}
+    \Psi^\prime_1 \\ \Psi^\prime_2
+\end{pmatrix} =
+\begin{pmatrix}
+    \cos \frac{\theta}{2} &amp; -i e^{-i \phi} \sin \frac{\theta}{2} \\
+    -i e^{i \phi} \sin \frac{\theta}{2} &amp; \cos \frac{\theta}{2}
+\end{pmatrix}
+\begin{pmatrix}
+    \Psi_1 \\ \Psi_2
+\end{pmatrix},\end{split}\]</div>
+<p>where <span class="math">\(\phi = \delta t + \alpha\)</span>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>comp1_num</strong> &#8211; the number of the first affected component.</li>
+<li><strong>comp2_num</strong> &#8211; the number of the second affected component.</li>
+<li><strong>starting_phase</strong> &#8211; initial phase <span class="math">\(\alpha\)</span> of the oscillator (in radians).</li>
+<li><strong>f_detuning</strong> &#8211; detuning frequency <span class="math">\(\delta\)</span> (in Hz).</li>
+<li><strong>f_rabi</strong> &#8211; Rabi frequency <span class="math">\(\Omega\)</span> of the oscillator.
+Connected to the time of the pulse as <span class="math">\(\theta = \Omega t_{\mathrm{pulse}}\)</span>.</li>
+<li><strong>seed</strong> &#8211; RNG seed for calls with <tt class="docutils literal"><span class="pre">theta_noise</span> <span class="pre">&gt;</span> <span class="pre">0</span></tt>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-beclab.samplers">
+<span id="samplers"></span><h2>Samplers<a class="headerlink" href="#module-beclab.samplers" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.samplers.Density1DSampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">Density1DSampler</tt><big>(</big><em>wfs_meta</em>, <em>axis=-1</em>, <em>beam_splitter=None</em>, <em>theta=0</em><big>)</big><a class="headerlink" href="#beclab.samplers.Density1DSampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Collects the 1D projection of component density (mean only).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>axis</strong> &#8211; the number of an axis to project to.</li>
+<li><strong>beam_splitter</strong> &#8211; a <a class="reference internal" href="#beclab.BeamSplitter" title="beclab.BeamSplitter"><tt class="xref py py-class docutils literal"><span class="pre">BeamSplitter</span></tt></a> object.
+If given, it will be applied to the wavefunction before measuring populations.</li>
+<li><strong>theta</strong> &#8211; a rotation angle to pass to the beam splitter.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.samplers.EnergySampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">EnergySampler</tt><big>(</big><em>wfs_meta</em>, <em>system</em><big>)</big><a class="headerlink" href="#beclab.samplers.EnergySampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Collects the total energy of a BEC (see <a class="reference internal" href="#beclab.meters.EnergyMeter" title="beclab.meters.EnergyMeter"><tt class="xref py py-class docutils literal"><span class="pre">beclab.meters.EnergyMeter</span></tt></a> for details).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>system</strong> &#8211; the <a class="reference internal" href="#beclab.System" title="beclab.System"><tt class="xref py py-class docutils literal"><span class="pre">System</span></tt></a> object the wavefunction corresponds to.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.samplers.InteractionSampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">InteractionSampler</tt><big>(</big><em>wfs_meta</em><big>)</big><a class="headerlink" href="#beclab.samplers.InteractionSampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Collects the integral interaction <span class="math">\(I = \int \Psi_1^* \Psi_2 d\mathbf{x}\)</span>
+(both mean and per-component).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.samplers.PopulationSampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">PopulationSampler</tt><big>(</big><em>wfs_meta</em>, <em>beam_splitter=None</em>, <em>theta=0</em><big>)</big><a class="headerlink" href="#beclab.samplers.PopulationSampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Collects the component populations (both mean and per-trajectory).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>beam_splitter</strong> &#8211; a <a class="reference internal" href="#beclab.BeamSplitter" title="beclab.BeamSplitter"><tt class="xref py py-class docutils literal"><span class="pre">BeamSplitter</span></tt></a> object.
+If given, it will be applied to the wavefunction before measuring populations.</li>
+<li><strong>theta</strong> &#8211; a rotation angle to pass to the beam splitter.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.samplers.PsiSampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">PsiSampler</tt><a class="headerlink" href="#beclab.samplers.PsiSampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Collects the wavefunction for each trajectory.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.samplers.StoppingEnergySampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">StoppingEnergySampler</tt><big>(</big><em>wfs</em>, <em>system</em>, <em>limit=1e-06</em><big>)</big><a class="headerlink" href="#beclab.samplers.StoppingEnergySampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Same as <a class="reference internal" href="#beclab.samplers.EnergySampler" title="beclab.samplers.EnergySampler"><tt class="xref py py-class docutils literal"><span class="pre">EnergySampler</span></tt></a>, but raises <a class="reference internal" href="integrator.html#beclab.integrator.StopIntegration" title="beclab.integrator.StopIntegration"><tt class="xref py py-class docutils literal"><span class="pre">StopIntegration</span></tt></a>
+when the relative difference of the newly collected sample
+and the previous one is less than <tt class="docutils literal"><span class="pre">limit</span></tt>.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.samplers.VisibilitySampler">
+<em class="property">class </em><tt class="descclassname">beclab.samplers.</tt><tt class="descname">VisibilitySampler</tt><big>(</big><em>wfs_meta</em><big>)</big><a class="headerlink" href="#beclab.samplers.VisibilitySampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Sampler" title="beclab.integrator.Sampler"><tt class="xref py py-class docutils literal"><span class="pre">Sampler</span></tt></a></p>
+<p>Collects the visibility <span class="math">\(V = 2 \int \Psi_1^* \Psi_2 d\mathbf{x} / (N_1 + N_2)\)</span>
+(both mean and per-component).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-beclab.filters">
+<span id="filters"></span><h2>Filters<a class="headerlink" href="#module-beclab.filters" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.filters.NormalizationFilter">
+<em class="property">class </em><tt class="descclassname">beclab.filters.</tt><tt class="descname">NormalizationFilter</tt><big>(</big><em>wfs_meta</em>, <em>target_Ns</em><big>)</big><a class="headerlink" href="#beclab.filters.NormalizationFilter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="integrator.html#beclab.integrator.Filter" title="beclab.integrator.Filter"><tt class="xref py py-class docutils literal"><span class="pre">Filter</span></tt></a></p>
+<p>Renormalizes the wavefunction to the target population.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>target_Ns</strong> &#8211; a tuple of target populations for each component.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-beclab.meters">
+<span id="meters"></span><h2>Meters<a class="headerlink" href="#module-beclab.meters" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.meters.Density1DMeter">
+<em class="property">class </em><tt class="descclassname">beclab.meters.</tt><tt class="descname">Density1DMeter</tt><big>(</big><em>wfs_meta</em>, <em>axis=-1</em><big>)</big><a class="headerlink" href="#beclab.meters.Density1DMeter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Measures the projection of per-component density on a chosen axis
+(in other words, integrates the density over all the other axes).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>axis</strong> &#8211; the index of an axis to project to.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="beclab.meters.Density1DMeter.__call__">
+<tt class="descname">__call__</tt><big>(</big><em>wfs_data</em><big>)</big><a class="headerlink" href="#beclab.meters.Density1DMeter.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a numpy array with the shape <tt class="docutils literal"><span class="pre">(trajectories,</span> <span class="pre">components,</span> <span class="pre">size)</span></tt>
+with the projected density.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.meters.EnergyMeter">
+<em class="property">class </em><tt class="descclassname">beclab.meters.</tt><tt class="descname">EnergyMeter</tt><big>(</big><em>wfs_meta</em>, <em>system</em><big>)</big><a class="headerlink" href="#beclab.meters.EnergyMeter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Measures the energy of a BEC:</p>
+<div class="math">
+\[E = \sum_{j=1}^C \int \Psi_j^* \left(
+        - \frac{\nabla^2}{2 m} + V_j
+        + \sum_{k=1}^C \frac{g_{jk}}{2} \vert \Psi_k \vert^2
+    \right) \Psi_j d\mathbf{x}.\]</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</li>
+<li><strong>system</strong> &#8211; the <a class="reference internal" href="#beclab.System" title="beclab.System"><tt class="xref py py-class docutils literal"><span class="pre">System</span></tt></a> object the wavefunction corresponds to.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.meters.PopulationMeter">
+<em class="property">class </em><tt class="descclassname">beclab.meters.</tt><tt class="descname">PopulationMeter</tt><big>(</big><em>wfs_meta</em><big>)</big><a class="headerlink" href="#beclab.meters.PopulationMeter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Measures the per-trajectory populations.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>wfs_meta</strong> &#8211; a <a class="reference internal" href="#beclab.wavefunction.WavefunctionSetMetadata" title="beclab.wavefunction.WavefunctionSetMetadata"><tt class="xref py py-class docutils literal"><span class="pre">WavefunctionSetMetadata</span></tt></a> object.</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="beclab.meters.PopulationMeter.__call__">
+<tt class="descname">__call__</tt><big>(</big><em>wfs_data</em><big>)</big><a class="headerlink" href="#beclab.meters.PopulationMeter.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a numpy array with the shape <tt class="docutils literal"><span class="pre">(trajectories,</span> <span class="pre">components)</span></tt>
+with component populations.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-beclab.constants">
+<span id="constants"></span><h2>Constants<a class="headerlink" href="#module-beclab.constants" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="beclab.constants.Component">
+<em class="property">class </em><tt class="descclassname">beclab.constants.</tt><tt class="descname">Component</tt><big>(</big><em>atom_name</em>, <em>atom_mass</em>, <em>f</em>, <em>mf</em><big>)</big><a class="headerlink" href="#beclab.constants.Component" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a BEC component.</p>
+<dl class="attribute">
+<dt id="beclab.constants.Component.atom_name">
+<tt class="descname">atom_name</tt><a class="headerlink" href="#beclab.constants.Component.atom_name" title="Permalink to this definition">¶</a></dt>
+<dd><p>A string with the type of the atom.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.constants.Component.atom_mass">
+<tt class="descname">atom_mass</tt><a class="headerlink" href="#beclab.constants.Component.atom_mass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Atom mass (in a.m.u).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.constants.Component.f">
+<tt class="descname">f</tt><a class="headerlink" href="#beclab.constants.Component.f" title="Permalink to this definition">¶</a></dt>
+<dd><p>Total spin of the atom.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.constants.Component.mf">
+<tt class="descname">mf</tt><a class="headerlink" href="#beclab.constants.Component.mf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Total spin projection.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.constants.Component.m">
+<tt class="descname">m</tt><a class="headerlink" href="#beclab.constants.Component.m" title="Permalink to this definition">¶</a></dt>
+<dd><p>Atom mass (in kg).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="beclab.constants.FeshbachResonance">
+<em class="property">class </em><tt class="descclassname">beclab.constants.</tt><tt class="descname">FeshbachResonance</tt><big>(</big><em>value</em>, <em>background_scattering</em>, <em>width</em>, <em>decay_width</em><big>)</big><a class="headerlink" href="#beclab.constants.FeshbachResonance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a Feshbach resonance.</p>
+<dl class="attribute">
+<dt id="beclab.constants.FeshbachResonance.value">
+<tt class="descname">value</tt><a class="headerlink" href="#beclab.constants.FeshbachResonance.value" title="Permalink to this definition">¶</a></dt>
+<dd><p>Resonance magnetic field (in G).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.constants.FeshbachResonance.background_scattering">
+<tt class="descname">background_scattering</tt><a class="headerlink" href="#beclab.constants.FeshbachResonance.background_scattering" title="Permalink to this definition">¶</a></dt>
+<dd><p>Background scattering length (in Bohr radii).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="beclab.constants.FeshbachResonance.width">
+<tt class="descname">width</tt><a class="headerlink" href="#beclab.constants.FeshbachResonance.width" title="Permalink to this definition">¶</a></dt>
+<dd><p>Resonance width (in G).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">decay width</tt></dt>
+<dd><p>Resonance decay width (in G).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.HBAR">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">HBAR</tt><em class="property"> = 1.054571628e-34</em><a class="headerlink" href="#beclab.constants.HBAR" title="Permalink to this definition">¶</a></dt>
+<dd><p>Planck constant (in J*s).</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.M_PROTON">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">M_PROTON</tt><em class="property"> = 1.6588053425287357e-27</em><a class="headerlink" href="#beclab.constants.M_PROTON" title="Permalink to this definition">¶</a></dt>
+<dd><p>Proton mass (in kg).</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.R_BOHR">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">R_BOHR</tt><em class="property"> = 5.2917720859e-11</em><a class="headerlink" href="#beclab.constants.R_BOHR" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bohr radius (in m).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.effective_area">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">effective_area</tt><big>(</big><em>m</em>, <em>f1</em>, <em>f2</em><big>)</big><a class="headerlink" href="#beclab.constants.effective_area" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the effective area (in squared meters) for a pseudo-1D trap
+with transverse frequencies <tt class="docutils literal"><span class="pre">f1</span></tt> and <tt class="docutils literal"><span class="pre">f2</span></tt> (in Hz) and atoms with mass <tt class="docutils literal"><span class="pre">m</span></tt> (in kg).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.feshbach_interaction">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">feshbach_interaction</tt><big>(</big><em>m</em>, <em>B</em>, <em>resonance</em><big>)</big><a class="headerlink" href="#beclab.constants.feshbach_interaction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a tuple of the scattering length (in Bohr radii)
+and the corresponding two-body loss rate <span class="math">\(\kappa\)</span>
+(in <span class="math">\(\mathrm{m}^3/\mathrm{s}\)</span>)
+for the given Feshbach resonance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>m</strong> &#8211; atom mass (kg).</li>
+<li><strong>B</strong> &#8211; magnetic field (G).</li>
+<li><strong>resonance</strong> &#8211; a <a class="reference internal" href="#beclab.constants.FeshbachResonance" title="beclab.constants.FeshbachResonance"><tt class="xref py py-class docutils literal"><span class="pre">FeshbachResonance</span></tt></a> object.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.loss_rate">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">loss_rate</tt><big>(</big><em>*comps</em>, <em>**kwds</em><big>)</big><a class="headerlink" href="#beclab.constants.loss_rate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the loss rate (in SI units) for a list of one or more <a class="reference internal" href="#beclab.constants.Component" title="beclab.constants.Component"><tt class="xref py py-class docutils literal"><span class="pre">Component</span></tt></a> objects
+in the magnetic field <tt class="docutils literal"><span class="pre">B</span></tt> (in G).
+The loss rate returned is the theoretical one (<span class="math">\(\kappa\)</span>).</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.magical_field_Rb87_1m1_2p1">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">magical_field_Rb87_1m1_2p1</tt><em class="property"> = 3.228</em><a class="headerlink" href="#beclab.constants.magical_field_Rb87_1m1_2p1" title="Permalink to this definition">¶</a></dt>
+<dd><p>The &#8220;magical&#8221; magnetic field (in G)
+for <span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=1,\, m_F=-1 \rangle\)</span> and
+<span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=2,\, m_F=+1 \rangle\)</span> interaction.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.mu_tf_1d">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">mu_tf_1d</tt><big>(</big><em>freq</em>, <em>N</em>, <em>m</em>, <em>g</em><big>)</big><a class="headerlink" href="#beclab.constants.mu_tf_1d" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the TF-approximated chemical potential (in J) for <tt class="docutils literal"><span class="pre">N</span></tt> atoms of mass <tt class="docutils literal"><span class="pre">m</span></tt>
+and elastic interaction coefficient <tt class="docutils literal"><span class="pre">g</span></tt> (in <span class="math">\(\mathrm{J} \cdot \mathrm{m}\)</span>)
+in a 1D trap with frequency <tt class="docutils literal"><span class="pre">freq</span></tt> (in Hz).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.mu_tf_3d">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">mu_tf_3d</tt><big>(</big><em>freqs</em>, <em>N</em>, <em>m</em>, <em>g</em><big>)</big><a class="headerlink" href="#beclab.constants.mu_tf_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the TF-approximated chemical potential (in J) for <tt class="docutils literal"><span class="pre">N</span></tt> atoms of mass <tt class="docutils literal"><span class="pre">m</span></tt>
+and elastic interaction coefficient <tt class="docutils literal"><span class="pre">g</span></tt> (in <span class="math">\(\mathrm{J} \cdot \mathrm{m}^3\)</span>)
+in a 3D trap with frequencies <tt class="docutils literal"><span class="pre">freqs</span></tt> (in Hz).</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.rb87_1_1">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">rb87_1_1</tt><em class="property"> = Component(Rb,87,1,1)</em><a class="headerlink" href="#beclab.constants.rb87_1_1" title="Permalink to this definition">¶</a></dt>
+<dd><p><span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=1,\, m_F=+1 \rangle\)</span>.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.rb87_1_minus1">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">rb87_1_minus1</tt><em class="property"> = Component(Rb,87,1,-1)</em><a class="headerlink" href="#beclab.constants.rb87_1_minus1" title="Permalink to this definition">¶</a></dt>
+<dd><p><span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=1,\, m_F=-1 \rangle\)</span>.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.rb87_2_1">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">rb87_2_1</tt><em class="property"> = Component(Rb,87,2,1)</em><a class="headerlink" href="#beclab.constants.rb87_2_1" title="Permalink to this definition">¶</a></dt>
+<dd><p><span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=2,\, m_F=-1 \rangle\)</span>.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.rb87_2_2">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">rb87_2_2</tt><em class="property"> = Component(Rb,87,2,2)</em><a class="headerlink" href="#beclab.constants.rb87_2_2" title="Permalink to this definition">¶</a></dt>
+<dd><p><span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=2,\, m_F=+2 \rangle\)</span>.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.rb87_2_minus1">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">rb87_2_minus1</tt><em class="property"> = Component(Rb,87,2,-1)</em><a class="headerlink" href="#beclab.constants.rb87_2_minus1" title="Permalink to this definition">¶</a></dt>
+<dd><p><span class="math">\(^{87}\mathrm{Rb}\)</span>, <span class="math">\(\vert F=2,\, m_F=-1 \rangle\)</span>.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="beclab.constants.resonance_Rb_9_1">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">resonance_Rb_9_1</tt><em class="property"> = &lt;beclab.constants.FeshbachResonance instance at 0x103a4d1b8&gt;</em><a class="headerlink" href="#beclab.constants.resonance_Rb_9_1" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Feshbach resonance for Rb87 at 9.1G.
+See Kaufman et al., PRA 80 050701 (2009).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.scattering_3d">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">scattering_3d</tt><big>(</big><em>a</em>, <em>m</em><big>)</big><a class="headerlink" href="#beclab.constants.scattering_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the 3D elastic interaction coefficient
+(in <span class="math">\(\mathrm{J} \cdot \mathrm{m}^3\)</span>) for
+the scattering length <tt class="docutils literal"><span class="pre">a</span></tt> (in Bohr radii) and atoms with mass <tt class="docutils literal"><span class="pre">m</span></tt> (in kg).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.scattering_length">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">scattering_length</tt><big>(</big><em>comp1</em>, <em>comp2</em>, <em>B=None</em><big>)</big><a class="headerlink" href="#beclab.constants.scattering_length" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the scattering length (in Bohr radii) for two <a class="reference internal" href="#beclab.constants.Component" title="beclab.constants.Component"><tt class="xref py py-class docutils literal"><span class="pre">Component</span></tt></a> objects
+in the magnetic field <tt class="docutils literal"><span class="pre">B</span></tt> (in G).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="beclab.constants.scattering_matrix">
+<tt class="descclassname">beclab.constants.</tt><tt class="descname">scattering_matrix</tt><big>(</big><em>comps</em>, <em>B=None</em><big>)</big><a class="headerlink" href="#beclab.constants.scattering_matrix" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a numpy array of the elastic interaction coefficients for
+the given list of <a class="reference internal" href="#beclab.constants.Component" title="beclab.constants.Component"><tt class="xref py py-class docutils literal"><span class="pre">Component</span></tt></a> objects and magnetic field <tt class="docutils literal"><span class="pre">B</span></tt> (in G).</p>
+</dd></dl>
+
+</div>
 </div>
 
 
@@ -56,6 +1013,24 @@
       </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">BEC-specific wrappers</a><ul>
+<li><a class="reference internal" href="#grids">Grids</a></li>
+<li><a class="reference internal" href="#potential">Potential</a></li>
+<li><a class="reference internal" href="#cutoffs">Cutoffs</a></li>
+<li><a class="reference internal" href="#ground-states">Ground states</a></li>
+<li><a class="reference internal" href="#integration">Integration</a></li>
+<li><a class="reference internal" href="#wavefunctions">Wavefunctions</a></li>
+<li><a class="reference internal" href="#beam-splitter">Beam splitter</a></li>
+<li><a class="reference internal" href="#module-beclab.samplers">Samplers</a></li>
+<li><a class="reference internal" href="#module-beclab.filters">Filters</a></li>
+<li><a class="reference internal" href="#module-beclab.meters">Meters</a></li>
+<li><a class="reference internal" href="#module-beclab.constants">Constants</a></li>
+</ul>
+</li>
+</ul>
+
   <h4>Previous topic</h4>
   <p class="topless"><a href="integrator.html"
                         title="previous chapter">Integrator</a></p>
@@ -87,6 +1062,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="integrator.html" title="Integrator"
              >previous</a> |</li>
