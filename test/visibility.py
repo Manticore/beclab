@@ -72,8 +72,8 @@ def run_test(thr, stepper_cls, integration, use_cutoff=False, no_losses=False, w
 
     integrator = Integrator(
         psi, system,
-        trajectories=trajectories, stepper_cls=stepper_cls,
-        wigner=wigner, seed=rng.randint(0, 2**32-1),
+        stepper_cls=stepper_cls,
+        seed=rng.randint(0, 2**32-1),
         cutoff=cutoff)
 
     # Prepare samplers

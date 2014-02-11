@@ -6,7 +6,7 @@ import beclab.constants as const
 import beclab.integrator as integrator
 from beclab.integrator import RK46NLStepper, Wiener
 from beclab.modules import get_drift, get_diffusion
-from beclab.wavefunction import WavefunctionSet, WavefunctionSetMetadata
+from beclab.wavefunction import WavefunctionSet, WavefunctionSetMetadata, REPR_WIGNER
 from beclab.samplers import EnergySampler, StoppingEnergySampler
 from beclab.filters import NormalizationFilter
 from beclab.cutoff import WavelengthCutoff
