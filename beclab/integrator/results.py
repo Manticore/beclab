@@ -1,6 +1,9 @@
 import sys
 import numpy
 
+from reikna.linalg import EntrywiseNorm
+from reikna.algorithms import Reduce, predicate_sum
+
 
 _range = xrange if sys.version_info[0] < 3 else range
 
@@ -128,12 +131,30 @@ def sample(data, t, samplers):
             stop_integration = True
 
         sample_dict[key] = dict(trajectories=sample.shape[0], time=t)
-        if not sampler.no_values:
-            sample_dict[key]['values'] = sample
-        if not sampler.no_mean:
-            sample_dict[key]['mean'] = sample.mean(0)
-        if not sampler.no_stderr:
-            sample_dict[key]['stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
+
+        if isinstance(sample, numpy.ndarray):
+            if not sampler.no_values:
+                sample_dict[key]['values'] = sample.copy()
+            if not sampler.no_mean:
+                sample_dict[key]['mean'] = sample.mean(0)
+            if not sampler.no_stderr:
+                sample_dict[key]['stderr'] = sample.std(0) / numpy.sqrt(sample.shape[0])
+        else:
+            thr = sample.thread
+
+            if not sampler.no_values:
+                sample_dict[key]['values'] = sample.get()
+            if not sampler.no_mean:
+                sum_vals = Reduce(sample, predicate_sum(sample.dtype), axes=(0,)).compile(thr)
+                sum_dev = thr.empty_like(sum_vals.parameter.output)
+                sum_vals(sum_dev, sample)
+                sample_dict[key]['mean'] = sum_dev.get() / sample.shape[0]
+            if not sampler.no_stderr:
+                norm2 = EntrywiseNorm(sample, order=2, axes=(0,)).compile(thr)
+                n2_dev = thr.empty_like(norm2.parameter.output)
+                norm2(n2_dev, sample)
+                std = n2_dev.get() / numpy.sqrt(sample.shape[0])
+                sample_dict[key]['stderr'] = std / numpy.sqrt(sample.shape[0])
 
     return sample_dict, stop_integration
 
