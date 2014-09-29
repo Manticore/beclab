@@ -12,12 +12,12 @@ if __name__ == '__main__':
         name='beclab',
         packages=[
             'beclab',
-            'beclab/integrator',
             ],
         provides=['beclab'],
         install_requires=[
             ('reikna >= 0.6.4'),
             ('progressbar2 >= 2.6.0'),
+            ('reikna-integrator >= 0.1.0')
             ],
         extras_require=dict(
             pyopencl=["pyopencl >= 2013.1"],

@@ -1,13 +1,13 @@
 import numpy
 
-from beclab.integrator import Sampler, StopIntegration
+from reiknacontrib.integrator import Sampler, StopIntegration
 from beclab.wavefunction import WavefunctionSet
 from beclab.meters import EnergyMeter, PopulationMeter, Density1DMeter
 
 
 class PsiSampler(Sampler):
     """
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
     Collects the wavefunction for each trajectory.
     """
@@ -21,7 +21,7 @@ class PsiSampler(Sampler):
 
 class PopulationSampler(Sampler):
     """
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
     Collects the component populations (both mean and per-trajectory).
 
@@ -53,7 +53,7 @@ class PopulationSampler(Sampler):
 
 class InteractionSampler(Sampler):
     r"""
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
     Collects the integral interaction :math:`I = \int \Psi_1^* \Psi_2 d\mathbf{x}`
     (both mean and per-component).
@@ -73,7 +73,7 @@ class InteractionSampler(Sampler):
 
 class VisibilitySampler(Sampler):
     r"""
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
     Collects the visibility :math:`V = 2 \int \Psi_1^* \Psi_2 d\mathbf{x} / (N_1 + N_2)`
     (both mean and per-component).
@@ -94,7 +94,7 @@ class VisibilitySampler(Sampler):
 
 class Density1DSampler(Sampler):
     """
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
     Collects the 1D projection of component density (mean only).
 
@@ -127,7 +127,7 @@ class Density1DSampler(Sampler):
 
 class EnergySampler(Sampler):
     """
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
     Collects the total energy of a BEC (see :py:class:`beclab.meters.EnergyMeter` for details).
 
@@ -145,9 +145,9 @@ class EnergySampler(Sampler):
 
 class StoppingEnergySampler(Sampler):
     """
-    Bases: :py:class:`~beclab.integrator.Sampler`
+    Bases: ``reiknacontrib.integrator.Sampler``
 
-    Same as :py:class:`EnergySampler`, but raises :py:class:`~beclab.integrator.StopIntegration`
+    Same as :py:class:`EnergySampler`, but raises ``reiknacontrib.integrator.StopIntegration``
     when the relative difference of the newly collected sample
     and the previous one is less than ``limit``.
     """

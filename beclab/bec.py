@@ -1,10 +1,10 @@
 import numpy
 
 from reikna.cluda import Module
+import reiknacontrib.integrator as integrator
+from reiknacontrib.integrator import RK46NLStepper, Wiener
 
 import beclab.constants as const
-import beclab.integrator as integrator
-from beclab.integrator import RK46NLStepper, Wiener
 from beclab.modules import get_drift, get_diffusion
 from beclab.wavefunction import WavefunctionSet, WavefunctionSetMetadata, REPR_WIGNER
 from beclab.samplers import EnergySampler, StoppingEnergySampler
@@ -277,7 +277,7 @@ class ImaginaryTimeGroundState:
     :param dtype: the dtype of the generated wavefunction
     :param grid: a :py:class:`~beclab.grid.Grid` object.
     :param system: a :py:class:`System` object.
-    :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
+    :param stepper_cls: one of the ``reiknacontrib.integrator.Stepper`` classes.
     :param cutoff: a :py:class:`~beclab.cutoff.Cutoff` object.
     :param verbose: whether do display additional information about the integration process.
 
@@ -333,9 +333,9 @@ class ImaginaryTimeGroundState:
         :param E_conv: a convergence threshold for the propagation.
             Convergence is estimated as the relative difference between the values of energy
             after propagation with normal and double step for ``sample_time``
-            (that is, the same as in :py:meth:`~beclab.integrator.Integrator.adaptive_step`).
+            (that is, the same as in ``reiknacontrib.integrator.Integrator.adaptive_step``).
         :param sample_time: time between successive sampling of energy.
-        :param samplers: additional samplers (:py:class:`~beclab.integrator.Sampler` objects)
+        :param samplers: additional samplers (``reiknacontrib.integrator.Sampler`` objects)
             to invoke during propagation.
         :param return_info: whether to return additional information about the propagation
             (see the return section below).
@@ -343,8 +343,8 @@ class ImaginaryTimeGroundState:
             Otherwise returns a tuple ``(wfs, result, info)``, where
             ``wfs`` is a :py:class:`WavefunctionSet` object,
             and the last two are the result data structure and
-            :py:class:`~beclab.integrator.IntegrationInfo` object, same as the ones
-            returned by :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
+            ``reiknacontrib.integrator.IntegrationInfo`` object, same as the ones
+            returned by ``reiknacontrib.integrator.Integrator.adaptive_step``.
         """
 
         # Initial TF state
@@ -380,13 +380,13 @@ class Integrator:
     :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
     :param system: a :py:class:`System` object.
     :param seed: a RNG seed to use when generating Wiener processes.
-    :param stepper_cls: one of the :py:class:`~beclab.integrator.Stepper` classes.
-        Passed to :py:meth:`~beclab.integrator.Integrator.fixed_step` or
-        :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
+    :param stepper_cls: one of the ``reiknacontrib.integrator.Stepper`` classes.
+        Passed to ``reiknacontrib.integrator.Integrator.fixed_step`` or
+        ``reiknacontrib.integrator.Integrator.adaptive_step``.
     :param cutoff: a :py:class:`~beclab.cutoff.Cutoff` object.
     :param profile: whether to synchronize with GPU before sampling.
-        Passed to :py:meth:`~beclab.integrator.Integrator.fixed_step` or
-        :py:meth:`~beclab.integrator.Integrator.adaptive_step`.
+        Passed to ``reiknacontrib.integrator.Integrator.fixed_step`` or
+        ``reiknacontrib.integrator.Integrator.adaptive_step``.
     """
 
     def __init__(self, wfs_meta, system,
@@ -449,7 +449,7 @@ class Integrator:
         """
         Start integration with fixed step for the :py:class:`beclab.WavefunctionSet` ``wfs``.
         Other parameters and return values are the same as in
-        :py:meth:`~beclab.integrator.Integrator.fixed_step`
+        ``reiknacontrib.integrator.Integrator.fixed_step``
         (except that ``data`` is replaced by ``wfs``).
         """
         return self._integrator.fixed_step(wfs.data, *args, **kwds)
@@ -458,7 +458,7 @@ class Integrator:
         """
         Start integration with adaptive step for the :py:class:`beclab.WavefunctionSet` ``wfs``.
         Other parameters and return values are the same as in
-        :py:meth:`~beclab.integrator.Integrator.adaptive_step`
+        ``reiknacontrib.integrator.Integrator.adaptive_step``
         (except that ``data`` is replaced by ``wfs``).
         """
         return self._integrator.adaptive_step(wfs.data, *args, **kwds)

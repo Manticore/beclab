@@ -6,7 +6,7 @@ from reikna.fft import FFT
 
 import beclab.constants as const
 from beclab.wavefunction import REPR_CLASSICAL, REPR_WIGNER
-from beclab.integrator import get_ksquared
+from reiknacontrib.integrator import get_ksquared
 
 
 class _ReduceNorm(Computation):

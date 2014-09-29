@@ -1,5 +1,5 @@
 import beclab.constants as const
-from beclab.integrator import get_padded_ksquared_cutoff, get_ksquared_cutoff_mask
+from reiknacontrib.integrator import get_padded_ksquared_cutoff, get_ksquared_cutoff_mask
 
 
 class Cutoff:

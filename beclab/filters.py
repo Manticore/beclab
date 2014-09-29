@@ -5,7 +5,7 @@ from reikna.core import Parameter, Annotation
 from reikna.algorithms import PureParallel
 
 from beclab.meters import PopulationMeter
-from beclab.integrator import Filter
+from reiknacontrib.integrator import Filter
 
 
 def get_multiply(wfs_meta):
@@ -38,7 +38,7 @@ def get_multiply(wfs_meta):
 
 class NormalizationFilter(Filter):
     """
-    Bases: :py:class:`~beclab.integrator.Filter`
+    Bases: ``reiknacontrib.integrator.Filter``
 
     Renormalizes the wavefunction to the target population.
 

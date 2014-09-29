@@ -1,4 +1,4 @@
-from beclab.integrator import RK4IPStepper, RK46NLStepper, CDIPStepper, CDStepper, \
+from reiknacontrib.integrator import RK4IPStepper, RK46NLStepper, CDIPStepper, CDStepper, \
     Wiener, join_results
 import beclab.constants as const
 from beclab.grid import UniformGrid
