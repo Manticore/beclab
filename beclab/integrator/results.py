@@ -198,29 +198,41 @@ def transpose_results(results):
     return new_results
 
 
-def join_results(results1, results2):
-    assert set(results1.keys()) == set(results2.keys())
+def join_results(results_list):
     full_results = {}
-    for key in results1:
-        r1 = results1[key]
-        r2 = results2[key]
-        tr1 = r1['trajectories']
-        tr2 = r2['trajectories']
+    for key in results_list[0]:
 
-        assert all(r1['time'] == r2['time'])
-        full_results[key] = dict(time=r1['time'], trajectories=tr1 + tr2)
+        r0 = results_list[0][key]
 
-        if 'values' in r1:
-            full_results[key]['values'] = numpy.concatenate([r1['values'], r2['values']], axis=1)
-        if 'mean' in r1:
-            mean1 = r1['mean']
-            mean2 = r2['mean']
-            full_results[key]['mean'] = (mean1 * tr1 + mean2 * tr2) / (tr1 + tr2)
-        if 'stderr' in r1:
-            err1 = r1['stderr']
-            err2 = r2['stderr']
-            full_results[key]['stderr'] = numpy.sqrt(
-                (err1**2 * tr1**2 + err2**2 * tr2**2)) / (tr1 + tr2)
+        trajectories = numpy.array([results[key]['trajectories'] for results in results_list])
+
+        full_results[key] = dict(
+            time=r0['time'],
+            trajectories=trajectories.sum())
+
+        if 'values' in r0:
+            full_results[key]['values'] = numpy.concatenate(
+                [results[key]['values'] for results in results_list], axis=0)
+
+        if 'mean' in r0:
+            means = numpy.concatenate(
+                [results[key]['mean'].reshape(1, *r0['mean'].shape)
+                for results in results_list], axis=0)
+
+            full_results[key]['mean'] = (
+                (means * trajectories.reshape(
+                    trajectories.size, *([1] * len(r0['mean'].shape)))).sum(0)
+                / trajectories.sum())
+
+        if 'stderr' in r0:
+
+            stderrs = numpy.concatenate(
+                [results[key]['stderr'].reshape(1, *r0['stderr'].shape)
+                for results in results_list], axis=0)
+
+            full_results[key]['stderr'] = (
+                numpy.sqrt((stderrs**2 * trajectories.reshape(
+                    trajectories.size, *([1] * len(r0['mean'].shape)))**2).sum(0))
+                / trajectories.sum())
 
     return full_results
-
