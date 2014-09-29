@@ -11,7 +11,11 @@ from beclab.integrator.helpers import get_ksquared, get_kprop_exp_trf
 
 def get_prop_iter(state_arr, drift, iterations, diffusion=None, dW_arr=None):
 
-    real_dtype = dtypes.real_for(state_arr.dtype)
+    if dtypes.is_complex(state_arr.dtype):
+        real_dtype = dtypes.real_for(state_arr.dtype)
+    else:
+        real_dtype = state_arr.dtype
+
     if diffusion is not None:
         noise_dtype = dW_arr.dtype
     else:
@@ -164,3 +168,58 @@ class CDIPStepper(Computation):
         self._add_kprop(plan, output, psi_N, kprop_device, dt)
 
         return plan
+
+
+class CDParallelStepper(Computation):
+    """
+    Central difference stepper with no interaction between elements in transverse direction.
+    """
+
+    abbreviation = "CDParallel"
+
+    def __init__(self, shape, drift, trajectories=1, diffusion=None, iterations=3):
+
+        if dtypes.is_complex(drift.dtype):
+            real_dtype = dtypes.real_for(drift.dtype)
+        else:
+            real_dtype = drift.dtype
+
+        if diffusion is not None:
+            assert diffusion.dtype == drift.dtype
+            assert diffusion.components == drift.components
+            self._noise = True
+            dW_dtype = real_dtype if diffusion.real_noise else drift.dtype
+            dW_arr = Type(dW_dtype, (trajectories, diffusion.noise_sources) + shape)
+        else:
+            dW_arr = None
+            self._noise = False
+
+        state_arr = Type(drift.dtype, (trajectories, drift.components) + shape)
+
+        Computation.__init__(self,
+            [Parameter('output', Annotation(state_arr, 'o')),
+            Parameter('input', Annotation(state_arr, 'i'))]
+            + ([Parameter('dW', Annotation(dW_arr, 'i'))] if self._noise else []) +
+            [Parameter('t', Annotation(real_dtype)),
+            Parameter('dt', Annotation(real_dtype))])
+
+        self._prop_iter = get_prop_iter(
+            state_arr, drift, iterations,
+            diffusion=diffusion, dW_arr=dW_arr)
+
+    def _build_plan(self, plan_factory, device_params, *args):
+
+        if self._noise:
+            output, input_, dW, t, dt = args
+        else:
+            output, input_, t, dt = args
+
+        plan = plan_factory()
+
+        if self._noise:
+            plan.computation_call(self._prop_iter, output, input_, dW, t, dt)
+        else:
+            plan.computation_call(self._prop_iter, output, input_, t, dt)
+
+        return plan
+
