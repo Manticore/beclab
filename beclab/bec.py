@@ -314,7 +314,7 @@ class ImaginaryTimeGroundState:
 
         stepper = stepper_cls(
             grid.shape, grid.box, drift,
-            kinetic_coeff=-1 / const.HBAR * system.kinetic_coeff,
+            kinetic_coeffs=-1 / const.HBAR * system.kinetic_coeff,
             ksquared_cutoff=ksquared_cutoff)
 
         self.integrator = integrator.Integrator(thr, stepper, verbose=verbose)
@@ -430,7 +430,7 @@ class Integrator:
 
         stepper = stepper_cls(
             grid.shape, grid.box, drift,
-            kinetic_coeff=-1j / const.HBAR * system.kinetic_coeff,
+            kinetic_coeffs=-1j / const.HBAR * system.kinetic_coeff,
             trajectories=wfs_meta.trajectories,
             diffusion=diffusion,
             ksquared_cutoff=ksquared_cutoff)
