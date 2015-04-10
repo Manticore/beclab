@@ -152,8 +152,11 @@ class System:
                 + \frac{U_{jk}}{2} \int d \mathbf{x}^\prime
                     \hat{\Psi}_j^\dagger \hat{\Psi}_k^{\prime\dagger}
                     \hat{\Psi}_j \hat{\Psi}_k^\prime
+                + \hat{\Psi}_j^\dagger \sum_{n=1}^N
+                    f_j^{(n)}(\hat{\Psi}_1, \ldots, \hat{\Psi}_C, t)
             \right\},
 
+    (where :math:`f_j` are linear functions in the :math:`\hat{\Psi}` arguments)
     and the master equation
 
     .. math::
@@ -170,13 +173,18 @@ class System:
         Note that these are not the experimental loss coefficients, which can be calculated as
         :math:`\gamma_{j,\mathbf{l}} \equiv 2 l_j \kappa_{\mathbf{l}}`.
     :param potential: a :py:class:`beclab.bec.Potential` object.
+    :param linear_terms: a list of modules each containing functions with suffixes
+        ``0``...``components-1`` (corresponding to the subscript index)
+        that will be passed ``psi_0,..., psi_C, t``,
+        and their return values added to the equation of the corresponding component.
     """
 
-    def __init__(self, components, interactions, losses=None, potential=None):
+    def __init__(self, components, interactions, losses=None, potential=None, linear_terms=None):
 
         self.potential = potential
         self.components = components
         self.interactions = interactions
+        self.linear_terms = linear_terms
 
         if losses is None or len(losses) == 0:
             self.losses = None
@@ -414,7 +422,8 @@ class Integrator:
             corrections=corrections,
             potential=system.potential.get_module(dtype, grid, system.components),
             losses=system.losses,
-            unitary_coefficient=-1j / const.HBAR)
+            unitary_coefficient=-1j / const.HBAR,
+            linear_terms=system.linear_terms)
 
         if noises:
             diffusion = get_diffusion(

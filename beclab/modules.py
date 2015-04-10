@@ -8,16 +8,23 @@ from reiknacontrib.integrator import Drift, Diffusion
 
 
 def get_drift(state_dtype, dimensions, components, interactions=None, corrections=None,
-        potential=None, losses=None, unitary_coefficient=1):
+        potential=None, losses=None, unitary_coefficient=1,
+        linear_terms=None):
     """
     interactions, array(comps, comps): two-body elastic interaction constants.
     losses, [(kappa, [l_1, ..., l_comps])]: inelastic interaction constants
         (l_i specifies the number of atoms of component i participating in the interaction).
         Coefficients are the "theorist's" ones.
+    linear_terms: a list of modules each containing functions with suffixes 0..components-1
+        that will be passed psi_0,..,t and their return values added to the equation
+        of the corresponding component.
     """
     if losses is None:
         losses = []
     real_dtype = dtypes.real_for(state_dtype)
+
+    if linear_terms is None:
+        linear_terms = []
 
     if interactions is None:
         interactions = numpy.zeros((components, components))
@@ -112,7 +119,18 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
                         ${r_const(unitary_coefficient.real)},
                         ${r_const(unitary_coefficient.imag)}
                         ),
-                    ${mul_sr}(psi_${comp}, V + U));
+                    ${mul_sr}(psi_${comp}, V + U)
+                    %if linear_terms is not None:
+                    %for linear_term in linear_terms:
+                    + ${linear_term}${comp}(
+                        %for c in range(components):
+                        psi_${c},
+                        %endfor
+                        t
+                        )
+                    %endfor
+                    %endif
+                );
 
                 return unitary + L;
             }
@@ -131,6 +149,7 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
                 mul_ss=functions.mul(state_dtype, state_dtype),
                 mul_sr=functions.mul(state_dtype, real_dtype),
                 norm=functions.norm(state_dtype),
+                linear_terms=linear_terms
                 )),
         state_dtype, components=interactions.shape[0])
 
