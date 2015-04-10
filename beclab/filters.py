@@ -4,7 +4,7 @@ from reikna.cluda import dtypes, functions
 from reikna.core import Parameter, Annotation
 from reikna.algorithms import PureParallel
 
-from beclab.meters import PopulationMeter
+from beclab.meters import DensityIntegralMeter
 from reiknacontrib.integrator import Filter
 
 
@@ -47,7 +47,7 @@ class NormalizationFilter(Filter):
     """
 
     def __init__(self, wfs_meta, target_Ns):
-        self._population = PopulationMeter(wfs_meta)
+        self._population = DensityIntegralMeter(wfs_meta)
         self._target_Ns = target_Ns
         self._multiply = get_multiply(wfs_meta).compile(wfs_meta.thread)
 

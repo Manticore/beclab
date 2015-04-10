@@ -1,8 +1,9 @@
 from reikna.cluda import dtypes, functions
 from reikna.core import Computation, Parameter, Annotation, Type, Transformation
 from reikna.transformations import mul_const, norm_const, add_const
-from reikna.algorithms import Reduce, predicate_sum
+from reikna.algorithms import Reduce, predicate_sum, PureParallel
 from reikna.fft import FFT
+from reikna.helpers import product
 
 import beclab.constants as const
 from beclab.wavefunction import REPR_CLASSICAL, REPR_WIGNER
@@ -45,63 +46,122 @@ class _ReduceNorm(Computation):
         return plan
 
 
-class PopulationMeter:
+class _SliceNorm(Computation):
     """
-    Measures the per-trajectory populations.
+    Calculates (abs(psi) ** 2 + modifier)[..axes..].
+    """
+
+    def __init__(self, wfs_meta, fixed_axes={}, modifier=0):
+
+        sliced_shape = tuple(
+            dim for axis, dim in enumerate(wfs_meta.shape) if axis not in fixed_axes)
+        sliced_arr = Type(wfs_meta.dtype, sliced_shape)
+
+        self._slice_comp = PureParallel(
+            [
+                Parameter('output', Annotation(sliced_arr, 'o')),
+                Parameter('input', Annotation(wfs_meta.data, 'i'))],
+            """
+            <%
+                variable_idxs = list(idxs)
+                input_idxs = []
+                for axis in range(len(input.shape)):
+                    if axis in fixed_axes:
+                        input_idxs.append(str(fixed_axes[axis]))
+                    else:
+                        input_idxs.append(variable_idxs.pop(0))
+            %>
+            ${input.ctype} t = ${input.load_idx}(${', '.join(input_idxs)});
+            ${output.store_idx}(${idxs.all()}, t);
+            """, render_kwds=dict(fixed_axes=fixed_axes))
+
+        norm_trf = norm_const(sliced_arr, 2)
+        self._slice_comp.parameter.output.connect(
+            norm_trf, norm_trf.input, normed_output=norm_trf.output)
+
+        if modifier != 0:
+            add_trf = add_const(self._slice_comp.parameter.normed_output, modifier)
+            self._slice_comp.parameter.normed_output.connect(
+                add_trf, add_trf.input, result=add_trf.output)
+
+        Computation.__init__(self, [
+            Parameter('result', Annotation(self._slice_comp.parameter.result, 'o')),
+            Parameter('wfs_data', Annotation(wfs_meta.data, 'i'))])
+
+    def _build_plan(self, plan_factory, device_params, result, wfs_data):
+        plan = plan_factory()
+        plan.computation_call(self._slice_comp, result, wfs_data)
+        return plan
+
+
+def _density_slice_computation(arr_t, scale, axes):
+    result_shape = list(arr_t.shape)
+
+
+    return PureParallel(
+        [
+            Parameter('output', Annotation(result_arr, 'o')),
+            Parameter('input', Annotation(wfs_meta.data, 'i'))])
+
+
+class DensityIntegralMeter:
+    """
+    Measures the integral of per-component density over chosen axes.
 
     :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param axes: indices of axes to integrate over (integrates over all axes if not given).
     """
 
-    def __init__(self, wfs_meta):
+    def __init__(self, wfs_meta, axes=None):
         thread = wfs_meta.thread
-        scale = wfs_meta.grid.dV
+
         if wfs_meta.representation == REPR_WIGNER:
             modifier = -wfs_meta.modes / wfs_meta.grid.V / 2
         else:
             modifier = 0
+
+        if axes is None:
+            axes = range(len(wfs_meta.grid.shape))
+        axes = tuple(axes)
+
+        scale = product(wfs_meta.grid.dxs[axis] for axis in axes)
+
+        # shifting to accommodate the trajectory and the component axes
+        axes = [axis + 2 for axis in axes]
         self._meter = _ReduceNorm(
-            wfs_meta, axes=list(range(2, len(wfs_meta.shape))),
-            scale=scale, modifier=modifier).compile(thread)
+            wfs_meta, axes=axes, scale=scale, modifier=modifier).compile(thread)
         self._out = thread.empty_like(self._meter.parameter.result)
 
     def __call__(self, wfs_data):
         """
-        Returns a numpy array with the shape ``(trajectories, components)``
-        with component populations.
+        Returns a numpy array with the shape ``(trajectories, components, size)``
+        with the projected density.
         """
         self._meter(self._out, wfs_data)
         return self._out.get()
 
 
-class Density1DMeter:
+class DensitySliceMeter:
     """
     Measures the projection of per-component density on a chosen axis
     (in other words, integrates the density over all the other axes).
 
     :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
-    :param axis: the index of an axis to project to.
+    :param fixed_axes: a dictionary ``{axis: value}`` of fixed indices for the slice.
     """
 
-    def __init__(self, wfs_meta, axis=-1):
+    def __init__(self, wfs_meta, fixed_axes={}):
         thread = wfs_meta.thread
-        scale = wfs_meta.grid.dV
 
-        scale = wfs_meta.grid.dV / wfs_meta.grid.dxs[axis]
         if wfs_meta.representation == REPR_WIGNER:
             modifier = -wfs_meta.modes / wfs_meta.grid.V / 2
         else:
             modifier = 0
 
-        if axis < 0:
-            axis = len(wfs_meta.shape) + axis
-        else:
-            axis = axis + 2
-        axes = set(range(2, len(wfs_meta.shape)))
-        axes.remove(axis)
-        axes = tuple(axes)
+        fixed_axes = {axis+2:value for axis, value in fixed_axes.items()}
 
-        self._meter = _ReduceNorm(
-            wfs_meta, axes=axes, scale=scale, modifier=modifier).compile(thread)
+        self._meter = _SliceNorm(
+            wfs_meta, fixed_axes=fixed_axes, modifier=modifier).compile(thread)
         self._out = thread.empty_like(self._meter.parameter.result)
 
     def __call__(self, wfs_data):

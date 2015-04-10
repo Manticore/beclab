@@ -78,8 +78,8 @@ def run_test(thr, stepper_cls, integration, use_cutoff=False, no_losses=False, w
 
     # Prepare samplers
     bs = BeamSplitter(psi, f_detuning=f_detuning, f_rabi=f_rabi)
-    n_sampler = PopulationSampler(psi, beam_splitter=bs, theta=numpy.pi / 2)
-    ax_sampler = Density1DSampler(psi, beam_splitter=bs, theta=numpy.pi / 2)
+    n_sampler = DensityIntegralSampler(psi, beam_splitter=bs, theta=numpy.pi / 2)
+    ax_sampler = DensityIntegralSampler(psi, axes=(0, 1), beam_splitter=bs, theta=numpy.pi / 2)
     samplers = dict(N=n_sampler, axial_density=ax_sampler)
 
     # Integrate

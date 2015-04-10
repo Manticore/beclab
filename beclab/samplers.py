@@ -2,7 +2,7 @@ import numpy
 
 from reiknacontrib.integrator import Sampler, StopIntegration
 from beclab.wavefunction import WavefunctionSet
-from beclab.meters import EnergyMeter, PopulationMeter, Density1DMeter
+from beclab.meters import EnergyMeter, DensityIntegralMeter, DensitySliceMeter
 
 
 class PsiSampler(Sampler):
@@ -92,22 +92,59 @@ class VisibilitySampler(Sampler):
         return 2 * numpy.abs(Is) / Ns.sum(1)
 
 
-class Density1DSampler(Sampler):
+class DensityIntegralSampler(Sampler):
     """
     Bases: ``reiknacontrib.integrator.Sampler``
 
-    Collects the 1D projection of component density (mean only).
+    Collects the density integrated over given axes.
 
     :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
-    :param axis: the number of an axis to project to.
+    :param axes: indices of axes to integrate over (integrates over all axes if not given).
     :param beam_splitter: a :py:class:`~beclab.BeamSplitter` object.
         If given, it will be applied to the wavefunction before measuring populations.
     :param theta: a rotation angle to pass to the beam splitter.
+    :param no_values: if ``True``, no per-trajectory values will be preserved.
     """
 
-    def __init__(self, wfs_meta, axis=-1, beam_splitter=None, theta=0):
-        Sampler.__init__(self, no_values=True)
-        self._dmeter = Density1DMeter(wfs_meta, axis=axis)
+    def __init__(self, wfs_meta, axes=None, beam_splitter=None, theta=0, no_values=False):
+        Sampler.__init__(self, no_values=no_values)
+
+        self._dmeter = DensityIntegralMeter(wfs_meta, axes=axes)
+        self._theta = theta
+
+        self._beam_splitter = beam_splitter
+        if beam_splitter is not None:
+            self._wfs_temp = WavefunctionSet.for_meta(wfs_meta)
+
+    def __call__(self, wfs_data, t):
+        if self._beam_splitter is not None:
+            self._wfs_temp.fill_with(wfs_data)
+            self._beam_splitter(self._wfs_temp.data, t, self._theta)
+            data = self._wfs_temp.data
+        else:
+            data = wfs_data
+
+        return self._dmeter(data)
+
+
+class DensitySliceSampler(Sampler):
+    """
+    Bases: ``reiknacontrib.integrator.Sampler``
+
+    Collects a density slice with given fixed indices.
+
+    :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
+    :param fixed_axes: a dictionary ``{axis: value}`` of fixed indices for the slice.
+    :param beam_splitter: a :py:class:`~beclab.BeamSplitter` object.
+        If given, it will be applied to the wavefunction before measuring populations.
+    :param theta: a rotation angle to pass to the beam splitter.
+    :param no_values: if ``True``, no per-trajectory values will be preserved.
+    """
+
+    def __init__(self, wfs_meta, fixed_axes={}, beam_splitter=None, theta=0, no_values=False):
+        Sampler.__init__(self, no_values=no_values)
+
+        self._dmeter = DensitySliceMeter(wfs_meta, fixed_axes=fixed_axes)
         self._theta = theta
 
         self._beam_splitter = beam_splitter

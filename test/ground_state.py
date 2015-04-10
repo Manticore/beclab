@@ -40,7 +40,7 @@ def ground_state(thomas_fermi=False, use_cutoff=False):
         gs = gs_gen([N, 0])
     else:
         gs_gen = ImaginaryTimeGroundState(thr, dtype, grid, system, cutoff=cutoff)
-        ax_sampler = Density1DSampler(gs_gen.wfs_meta)
+        ax_sampler = DensityIntegralSampler(gs_gen.wfs_meta, axes=(0, 1))
         gs, result, info = gs_gen(
             [N, 0], E_diff=1e-7, E_conv=1e-9, sample_time=1e-4,
             samplers=dict(axial_density=ax_sampler), return_info=True)
