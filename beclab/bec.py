@@ -389,7 +389,7 @@ class Integrator:
     """
 
     def __init__(self, wfs_meta, system,
-            seed=None, stepper_cls=RK46NLStepper,
+            stepper_cls=RK46NLStepper,
             cutoff=None, profile=False):
 
         thr = wfs_meta.thread
