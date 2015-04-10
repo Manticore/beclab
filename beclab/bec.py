@@ -379,7 +379,6 @@ class Integrator:
 
     :param wfs_meta: a :py:class:`~beclab.wavefunction.WavefunctionSetMetadata` object.
     :param system: a :py:class:`System` object.
-    :param seed: a RNG seed to use when generating Wiener processes.
     :param stepper_cls: one of the ``reiknacontrib.integrator.Stepper`` classes.
         Passed to ``reiknacontrib.integrator.Integrator.fixed_step`` or
         ``reiknacontrib.integrator.Integrator.adaptive_step``.
@@ -435,14 +434,8 @@ class Integrator:
             diffusion=diffusion,
             ksquared_cutoff=ksquared_cutoff)
 
-        if noises:
-            wiener = Wiener(stepper.parameter.dW, 1. / grid.dV, seed=seed)
-        else:
-            wiener = None
-
         self._integrator = integrator.Integrator(
             thr, stepper,
-            wiener=wiener,
             profile=profile)
 
     def fixed_step(self, wfs, *args, **kwds):
