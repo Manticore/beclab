@@ -76,6 +76,7 @@ class _SliceNorm(Computation):
             """, render_kwds=dict(fixed_axes=fixed_axes))
 
         norm_trf = norm_const(sliced_arr, 2)
+        result_arr = norm_trf.output
         self._slice_comp.parameter.output.connect(
             norm_trf, norm_trf.input, normed_output=norm_trf.output)
 
@@ -85,7 +86,7 @@ class _SliceNorm(Computation):
                 add_trf, add_trf.input, result=add_trf.output)
 
         Computation.__init__(self, [
-            Parameter('result', Annotation(self._slice_comp.parameter.result, 'o')),
+            Parameter('result', Annotation(result_arr, 'o')),
             Parameter('wfs_data', Annotation(wfs_meta.data, 'i'))])
 
     def _build_plan(self, plan_factory, device_params, result, wfs_data):
