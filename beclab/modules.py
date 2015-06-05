@@ -63,6 +63,7 @@ def get_drift(state_dtype, dimensions, components, interactions=None, correction
 
                 // Elastic interactions
                 const ${r_ctype} U =
+                    0
                     %for other_comp in range(components):
                     <%
                         g = interactions[comp, other_comp]
