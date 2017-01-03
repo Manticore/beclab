@@ -253,11 +253,11 @@ def mu_tf_3d(freqs, N, m, g):
         g ** 0.4)
 
 
-def mu_tf_1d(freq, N, m, g):
+def mu_tf_1d(freqs, N, m, g):
     """
     Returns the TF-approximated chemical potential (in J) for ``N`` atoms of mass ``m``
     and elastic interaction coefficient ``g`` (in :math:`\mathrm{J} \cdot \mathrm{m}`)
-    in a 1D trap with frequency ``freq`` (in Hz).
+    in a 1D trap with a 1-element array of frequencies ``freqs`` (in Hz).
     """
     assert len(freqs) == 1
     return (

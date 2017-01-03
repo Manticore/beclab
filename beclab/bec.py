@@ -199,9 +199,12 @@ def box_for_tf(system, comp_num, N, pad=1.2):
     Returns a tuple with the box sizes that can accommodate the Thomas-Fermi ground state of a BEC
     with ``N`` particles made of component ``comp_num`` from the :py:class:`System` ``system``.
     """
+    dims = len(system.potential.trap_frequencies)
+    assert dims in (1, 3)
     m = system.components[comp_num].m
     g = system.interactions[comp_num, comp_num]
-    mu = const.mu_tf_3d(system.potential.trap_frequencies, N, m, g)
+    mu = (const.mu_tf_3d if dims == 3 else const.mu_tf_1d)(
+        system.potential.trap_frequencies, N, m, g)
     diameter = lambda f: (
         2.0 * pad * numpy.sqrt(2.0 * mu / (m * (2 * numpy.pi * f) ** 2)))
     return tuple(diameter(f) for f in system.potential.trap_frequencies)
@@ -225,7 +228,7 @@ class ThomasFermiGroundState:
 
     def __init__(self, thr, dtype, grid, system, cutoff=None):
 
-        if grid.dimensions != 3:
+        if grid.dimensions not in (1, 3):
             raise NotImplementedError()
 
         self.thr = thr
@@ -259,7 +262,7 @@ class ThomasFermiGroundState:
                 psi_TF[0, i] = 0
                 continue
 
-            mu = const.mu_tf_3d(
+            mu = (const.mu_tf_3d if self.grid.dimensions == 3 else const.mu_tf_1d)(
                 self.system.potential.trap_frequencies, N,
                 component.m, self.system.interactions[i, i])
 
@@ -298,7 +301,7 @@ class ImaginaryTimeGroundState:
     def __init__(self, thr, dtype, grid, system, stepper_cls=RK46NLStepper,
             cutoff=None, verbose=True):
 
-        if grid.dimensions != 3:
+        if grid.dimensions not in (1, 3):
             raise NotImplementedError()
 
         self.thr = thr
