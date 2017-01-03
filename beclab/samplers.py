@@ -34,7 +34,7 @@ class PopulationSampler(Sampler):
     def __init__(self, wfs_meta, beam_splitter=None, theta=0):
         Sampler.__init__(self)
         self._theta = theta
-        self._pmeter = PopulationMeter(wfs_meta)
+        self._pmeter = DensityIntegralMeter(wfs_meta, axes=list(range(wfs_meta.grid.dimensions)))
 
         self._beam_splitter = beam_splitter
         if beam_splitter is not None:
